@@ -121,3 +121,16 @@ suite green (52 pass incl. lag/leak + `test_registry_serve`). Merged. **P1 is CO
 **REQUIREMENT flagged:** the nightly retrain + the registry's 'latest' (what P2's panel serves)
 MUST train on the **backfilled** (D8/D10) dataset (n=1869), NOT the thin opt-out default — else
 the panel would show a data-starved model. Released **P2** (raptor daily forecast panel).
+
+## D12 — P3 intraday design calls + nightly-retrain-on-backfill merged (2026-07-11)
+(a) **PR #6 merged** (4df5455): `scripts/nightly_retrain` now DEFAULTS to the D8 backfill (yfinance
+2018+, full 20-symbol board, split-adjusted, initial_train 252 → n=1869) — the served model trains
+on fat data (P2 hard-req satisfied). The fat-dataset VERDICT is still PENDING — routed a run.
+(b) **P3 intraday design** (agent-2 PR #7, review-gate — helen-verified: suite green + design note):
+- **Q1 horizon = 30 MIN.** Shorter = more forecastable + a tighter, more useful cone; 60-min
+  intraday returns are ~noise. At the 3-min feed that's ~10 bars ahead. Architecture can extend.
+- **Q3 = implement `p_move` as a REAL baseline NOW** (not a stub). It's the key honest question for
+  intraday: does the TFT beat raptor's *existing* p_move signal? A stub would defeat the point.
+- **eval_mask design APPROVED**: score only within-session bars; baselines `.predict()` on the full
+  window, mask only the SCORING — leak-safe (past-only) + apples-to-apples with baselines.
+PR #7 merged; agent-2 proceeds to the full intraday model.
