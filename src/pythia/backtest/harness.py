@@ -67,6 +67,7 @@ def run_backtest(
     splits: Iterable[WalkForwardSplit],
     model_factories: Mapping[str, ModelFactory],
     rw_name: str = "random_walk",
+    eval_mask: "pd.Series | Callable[[pd.DataFrame], pd.Series] | None" = None,
 ) -> dict[str, Report]:
     """Fit each model on each split, score, aggregate.
 
@@ -74,11 +75,25 @@ def run_backtest(
     model instance (needed because ``fit`` should not accumulate state
     across splits — that would be look-ahead by another name).
 
+    ``eval_mask`` (P3): restrict SCORING to a subset of eval rows without
+    disturbing the walk-forward geometry. A boolean ``pd.Series`` indexed on
+    ``frame.index`` (True = score this row), OR a callable ``frame -> Series``,
+    OR ``None`` (default = score everything, so daily P1 is a no-op). The mask
+    is applied ONLY at metric-compute time — every model still ``predict``s the
+    FULL eval window, so baselines are not retrained on filtered data and
+    metrics stay apples-to-apples. P3 uses it to score within-session bars only
+    (drop the overnight-gap rows) via ``data.intraday.overnight_mask``.
+
     Returns ``{model_name: Report}``. If a factory named ``rw_name`` is
     included, MAE-skill-vs-RW is computed for every other model.
     """
     frame = frame.sort_index()
     returns = _target_returns(frame, target_col)
+
+    mask_series: pd.Series | None = None
+    if eval_mask is not None:
+        resolved = eval_mask(frame) if callable(eval_mask) else eval_mask
+        mask_series = resolved.astype(bool)
 
     per_split_records: dict[str, list[dict]] = {name: [] for name in model_factories}
 
@@ -94,6 +109,15 @@ def run_backtest(
             continue
         y_true_idx = y_true.index
 
+        # Score-time mask (positional over y_true_idx). Models still predict
+        # the FULL eval window below; we only drop masked rows from metrics.
+        if mask_series is not None:
+            keep = mask_series.reindex(y_true_idx).fillna(False).to_numpy(dtype=bool)
+            if not keep.any():
+                continue
+        else:
+            keep = np.ones(len(y_true_idx), dtype=bool)
+
         for name, factory in model_factories.items():
             model = factory()
             model.fit(train_frame)
@@ -103,16 +127,22 @@ def run_backtest(
                     f"{name} produced {len(fc.mean)} predictions for "
                     f"{len(y_true_idx)} eval rows"
                 )
+            yt = np.asarray(y_true.to_list())[keep]
+            mean = np.asarray(fc.mean.to_list())[keep]
+            sigma = np.asarray(fc.sigma.to_list())[keep]
+            p10 = np.asarray(fc.quantile(0.10).to_list())[keep]
+            p50 = np.asarray(fc.quantile(0.50).to_list())[keep]
+            p90 = np.asarray(fc.quantile(0.90).to_list())[keep]
             per_split_records[name].append(
                 {
                     "eval_start": split.eval_start.isoformat(),
                     "eval_end": split.eval_end.isoformat(),
-                    "y_true": y_true.to_list(),
-                    "mean": fc.mean.to_list(),
-                    "sigma": fc.sigma.to_list(),
-                    "p10": fc.quantile(0.10).to_list(),
-                    "p50": fc.quantile(0.50).to_list(),
-                    "p90": fc.quantile(0.90).to_list(),
+                    "y_true": yt.tolist(),
+                    "mean": mean.tolist(),
+                    "sigma": sigma.tolist(),
+                    "p10": p10.tolist(),
+                    "p50": p50.tolist(),
+                    "p90": p90.tolist(),
                 }
             )
 
