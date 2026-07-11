@@ -30,6 +30,7 @@ from sqlalchemy import Engine, text
 
 from ..config import BOARD_SYMBOLS, QUOTE_TABLE, RATE_SYMBOLS, VIX_SYMBOLS
 from .calendar_features import add_calendar_features
+from .historical import ProviderFn, combine_daily, fetch_historical_daily_bars
 from .source import get_engine
 
 
@@ -41,6 +42,9 @@ class AssemblyResult:
     intraday: pd.DataFrame | None
     symbols_included: tuple[str, ...]
     symbols_missing: tuple[str, ...]
+    # D8 backfill: symbols whose OLD bars were filled from the historical
+    # provider. Empty on the default (Postgres-only) path.
+    symbols_backfilled: tuple[str, ...] = ()
 
 
 def _fetch_intraday(
@@ -153,6 +157,10 @@ def assemble_dataset(
     engine: Engine | None = None,
     include_intraday: bool = False,
     symbols: Iterable[str] | None = None,
+    historical_provider: str | None = None,
+    historical_adjust: bool = True,
+    historical_start: date | None = None,
+    historical_provider_fn: ProviderFn | None = None,
 ) -> AssemblyResult:
     """Pull the board + rate/vol proxies and return daily bars pivoted wide.
 
@@ -163,6 +171,15 @@ def assemble_dataset(
 
     ``symbols=None`` → the full board + all VIX/RATE candidates. Callers can
     pass an explicit set to test on a subset.
+
+    D8 backfill (opt-in): when ``historical_provider`` is set (e.g. "yfinance"),
+    historical daily bars for ``[historical_start or start, end]`` are fetched
+    and stitched UNDER the raptor feed — raptor stays the truth for dates it
+    covers, historical fills all the older bars. This fattens the thin ~214-obs
+    sample. The wide output SCHEMA is unchanged (``{symbol}_close`` /
+    ``{symbol}_volume`` + calendar features), so the covariate-lag gate and
+    ffill-past-only logic downstream are untouched. With no provider the path is
+    exactly as before and stays byte-deterministic. See docs/d8-backfill.md.
     """
     engine = engine or get_engine()
     if symbols is None:
@@ -171,21 +188,43 @@ def assemble_dataset(
         wanted = list(symbols)
 
     intraday = _fetch_intraday(engine, wanted, start, end)
-    present = set(intraday["symbol"].unique()) if not intraday.empty else set()
-    missing = tuple(s for s in wanted if s not in present)
-
     daily_long = daily_bars_from_intraday(intraday)
+
+    backfilled: tuple[str, ...] = ()
+    if historical_provider is not None or historical_provider_fn is not None:
+        hist_start = historical_start or start
+        historical_long = fetch_historical_daily_bars(
+            wanted,
+            hist_start,
+            end,
+            provider=historical_provider or "yfinance",
+            adjust=historical_adjust,
+            provider_fn=historical_provider_fn,
+        )
+        if not historical_long.empty:
+            backfilled = tuple(
+                s for s in wanted if s in set(historical_long["symbol"].unique())
+            )
+            daily_long = combine_daily(daily_long, historical_long, prefer="raptor")
+
+    # After backfill, "present" reflects everything now in the combined frame.
+    present_combined = (
+        set(daily_long["symbol"].unique()) if not daily_long.empty else set()
+    )
+    missing = tuple(s for s in wanted if s not in present_combined)
+    included = tuple(s for s in wanted if s in present_combined)
+
     wide = _pivot_wide(daily_long)
 
     # Calendar features (time-agnostic; keyed on date) go on the wide frame.
     wide = add_calendar_features(wide)
 
-    included = tuple(s for s in wanted if s in present)
     return AssemblyResult(
         daily=wide,
         intraday=intraday if include_intraday else None,
         symbols_included=included,
         symbols_missing=missing,
+        symbols_backfilled=backfilled,
     )
 
 

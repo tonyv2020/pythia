@@ -13,6 +13,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]
+# D8 historical backfill provider (opt-in; the core Postgres path needs none).
+backfill = ["yfinance>=0.2"]
 
 [build-system]
 requires = ["hatchling"]
