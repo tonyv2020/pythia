@@ -37,13 +37,40 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="comma-separated symbol override (default: full board + VIX/rate proxies)",
     )
+    # --- D8 historical backfill (opt-in) ---
+    p.add_argument(
+        "--historical",
+        type=str,
+        default=None,
+        choices=["yfinance", "stooq"],
+        help="backfill OLD daily bars from this provider (raptor feed stays truth for recent)",
+    )
+    p.add_argument(
+        "--historical-start",
+        type=_parse_date,
+        default=None,
+        help="earliest date to backfill from (default: --start). Use a years-back date to fatten the sample.",
+    )
+    p.add_argument(
+        "--no-adjust",
+        action="store_true",
+        help="use RAW (unadjusted) historical prices to match raptor's convention "
+        "(default: split/div-ADJUSTED to avoid fake split-day returns; see docs/d8-backfill.md)",
+    )
     args = p.parse_args(argv)
 
     symbols = None
     if args.symbols:
         symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
 
-    result = assemble_dataset(args.start, args.end, symbols=symbols)
+    result = assemble_dataset(
+        args.start,
+        args.end,
+        symbols=symbols,
+        historical_provider=args.historical,
+        historical_adjust=not args.no_adjust,
+        historical_start=args.historical_start,
+    )
     out = write_dataset(result, args.out)
 
     manifest = {
@@ -53,6 +80,10 @@ def main(argv: list[str] | None = None) -> int:
         "cols": int(result.daily.shape[1]),
         "symbols_included": list(result.symbols_included),
         "symbols_missing": list(result.symbols_missing),
+        "symbols_backfilled": list(result.symbols_backfilled),
+        "historical_provider": args.historical,
+        "historical_start": args.historical_start.isoformat() if args.historical_start else None,
+        "historical_adjusted": (args.historical is not None) and (not args.no_adjust),
         "output": str(out),
     }
     json.dump(manifest, sys.stdout, indent=2, sort_keys=True)
