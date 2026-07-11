@@ -97,3 +97,16 @@ helen-verified from `data/report.json` (TFT-lite, n=214, 22 walk-forward splits)
 Exactly what the rails were for. Verdict is on thin data (see D8); re-assess after backfill.
 Ffill-past-only (twin caveat 3) confirmed leak-safe. Released P1 phase-2b/c (registry + API +
 nightly retrain), P2 (raptor panel), and P3 (intraday, agent-2).
+
+## D10 — D8 backfill verified + merged; keep split-adjusted (2026-07-11)
+agent-2 delivered the historical daily backfill (PR #5): yfinance primary (stooq JS-blocked
+headless), raptor stays truth for recent (prefer=raptor on overlap), historical fills old bars.
+**helen-verified:** full suite 57 pass incl. lag/leak + `test_historical_backfill.py` asserts the
+backfill adds **rows not columns** → the covariate-lag gate is untouched. Board now 2018→2026,
+2141 days/symbol; walk-forward **n=1869 / 89 splits** (was n=214). **Decisions:** (1) KEEP
+split/div-**ADJUSTED** as default — unadjusted injects fake split-day returns (NVDA 10:1 = a fake
+~−90% return); adjusted is correct for a return model, and the adjustment ≈1 near the 2026-06-05
+cutover so no seam with raptor's raw recent data. (2) Determinism approved — backfill opt-in,
+default path byte-deterministic, freezable via `compute_dataset_hash`. **Merged.** NEXT: re-run
+the daily walk-forward on the fattened set → updated verdict (does the model show skill on 8
+years, or is the null robust? — the genuinely interesting question).
