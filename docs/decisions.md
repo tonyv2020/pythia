@@ -62,3 +62,16 @@ the return quantiles is what makes the P10-P90 band useful.
 ## D4-D6
 
 Reserved for helen.
+
+## D7 — P1 covariate-lag gate verified + merged (2026-07-11)
+The twin front-loaded the D3 gate as its own PR before building any model — the right order.
+Structural enforcement in `src/pythia/features/lag.py`: a `LagPolicy` classifies EVERY column
+(observed → lagged ≥1 row; known-future calendar → exempt; target → excluded from features),
+and any **unclassified** column **raises at build time** (fail-loud — a silent leak becomes a
+loud one). The test `test_feature_lag_no_within_row_leakage.py` asserts each feature at row t
+equals its raw value at t−lag (no same-bar leak, e.g. `SPY_close_t` can't feed `QQQ_return_t`)
+plus fail-loud on stray columns. **helen verified live: 7/7 gate test + 43/43 full suite pass.**
+Merged as PR #1 (c75b7ab). Released the twin to P1 phase 2 (TFT trainer + model registry +
+inference API + real backtest run). **Remaining P1 acceptance is unchanged and non-negotiable:**
+the real training pass must be CALIBRATED (P10–P90 ≈ 0.80) and report skill-vs-baseline HONESTLY
+— a null result vs random-walk is an acceptable, publishable outcome; overclaiming is not.
