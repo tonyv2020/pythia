@@ -1,0 +1,65 @@
+# Pythia nightly retrain — assembles the P0 dataset, runs walk-forward TFT-lite,
+# registers the report in pythia_models. Reads raptor postgres via the shared
+# service DNS (postgres.hollywood.svc.cluster.local:5432).
+#
+# Runs at 04:15 ET (=09:15 UTC in EST, =08:15 UTC in EDT) — well after the
+# US session close so raptor's daily bars are finalised. helen: adjust
+# schedule if raptor's ingest cadence changes.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pythia-nightly-retrain
+  namespace: pythia
+spec:
+  schedule: "15 9 * * 1-5"          # 09:15 UTC, Mon-Fri
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid          # never overlap a run
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: trainer
+              image: registry.lan/pythia-trainer:0.1.0
+              imagePullPolicy: IfNotPresent
+              command: ["python", "-m", "scripts.nightly_retrain"]
+              args:
+                - --data-dir=/data
+                - --model-name=tft_lite_daily_qqq
+                - --initial-train=150
+                - --eval-size=10
+                - --max-epochs=80
+              env:
+                # Postgres for BOTH the source data and the registry — same
+                # DB in P1 (registry table + staging.quote_raw both live in
+                # `raptor` on hollywood/postgres-0).
+                - name: PYTHIA_DB_DSN
+                  valueFrom:
+                    secretKeyRef:
+                      name: pythia-db
+                      key: dsn
+                - name: PYTHIA_REGISTRY_DSN
+                  valueFrom:
+                    secretKeyRef:
+                      name: pythia-db
+                      key: dsn
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+                  nvidia.com/gpu: 1
+                limits:
+                  cpu: "2"
+                  memory: 4Gi
+                  nvidia.com/gpu: 1
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: pythia-data
