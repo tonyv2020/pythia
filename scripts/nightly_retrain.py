@@ -2,11 +2,17 @@
 
 Wired into a k8s CronJob (see k8s/nightly-retrain-cronjob.yaml). One
 execution:
-    1. Assembles the P0 dataset from raptor Postgres for the *long-history*
-       symbol subset (D8 backfill will grow this later).
-    2. Runs the walk-forward TFT-lite backtest.
+    1. Assembles a **D8-backfilled** dataset — historical daily bars from
+       yfinance (2018-01-01 onward by default) + the raptor feed for recent
+       bars. This is the fat sample the P1-verdict + registry should run on;
+       n=1869/89 splits vs the thin default's n=214/22 (D10, helen 2026-07-11).
+    2. Runs the walk-forward TFT-lite backtest against the resulting frame.
     3. Registers the report in ``pythia_models`` with today's UTC datestamp
        as the model_version.
+
+The default flags OPT INTO the backfill so ``kubectl apply`` of the
+CronJob produces the fat verdict without extra config. Overrides via CLI
+if a night's run needs the thin-only path for diagnostics.
 
 Exits non-zero on any step failure — k8s handles alerting via the CronJob
 failure condition; there's no ambient state on success.
@@ -15,17 +21,22 @@ failure condition; there's no ambient state on success.
 from __future__ import annotations
 
 import argparse
-import json
-import os
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 
-LONG_HISTORY_SUBSET = (
-    "QQQ,AAPL,AMZN,GOOG,CORN,DBE,GLD,"
-    "BYND,CANE,DBB,DIS,DOCU,FXB,FXE,FXY"
+# Full 20-symbol macro board — everything the raptor-intel Macro % Change
+# panel renders. yfinance covers all of these with multi-year history, so
+# the backfilled dataset is the FULL board, not the long-history subset the
+# thin-only path is limited to.
+FULL_BOARD = (
+    "QQQ,SPY,DIA,IWM,"
+    "AAPL,MSFT,NVDA,GOOG,AMZN,META,TSLA,"
+    "GLD,SLV,GDX,"
+    "USO,UGA,UNG,DBE,"
+    "CORN,WEAT"
 )
 
 
@@ -37,12 +48,32 @@ def _run(cmd: list[str]) -> None:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="nightly_retrain")
     p.add_argument("--data-dir", type=Path, default=Path("/data"))
-    p.add_argument("--start", type=str, default="2023-05-19")
+    p.add_argument(
+        "--start", type=str, default="2018-01-01",
+        help="earliest date for the assembled dataset. Default 2018-01-01 covers "
+             "the D8 backfill window; the raptor feed still supplies recent bars.",
+    )
     p.add_argument("--model-name", type=str, default="tft_lite_daily_qqq")
     p.add_argument("--artifact-uri", type=str, default="pvc://pythia-data/report.json")
-    p.add_argument("--symbols", type=str, default=LONG_HISTORY_SUBSET)
-    p.add_argument("--initial-train", type=int, default=150)
-    p.add_argument("--eval-size", type=int, default=10)
+    p.add_argument("--symbols", type=str, default=FULL_BOARD)
+    p.add_argument(
+        "--historical", type=str, default="yfinance",
+        help="D8 backfill provider (default: yfinance). Pass empty string "
+             "to disable the backfill and use raptor-only bars.",
+    )
+    p.add_argument(
+        "--no-historical-adjust",
+        action="store_true",
+        help="Use raw (unadjusted) historical prices. Default is split/div-"
+             "adjusted; unadjusted would inject fake ~90%% split-day returns "
+             "into a multi-year sample (helen D10).",
+    )
+    p.add_argument(
+        "--initial-train", type=int, default=252,
+        help="~1 trading yr — right sized for the D8-fattened dataset "
+             "(n=1869); the thin-only default was 150.",
+    )
+    p.add_argument("--eval-size", type=int, default=21)
     p.add_argument("--max-epochs", type=int, default=80)
     args = p.parse_args(argv)
 
@@ -50,16 +81,22 @@ def main(argv: list[str] | None = None) -> int:
     dataset = args.data_dir / "board.parquet"
     report = args.data_dir / "report.json"
     today = datetime.now(UTC).date().isoformat()
-    # End = yesterday (today's bars may not be finalised yet).
     end = (datetime.now(UTC).date() - timedelta(days=1)).isoformat()
 
-    _run([
+    assemble_cmd = [
         sys.executable, "-m", "scripts.assemble_dataset",
         "--start", args.start,
         "--end", end,
         "--symbols", args.symbols,
         "--out", str(dataset),
-    ])
+    ]
+    if args.historical:
+        assemble_cmd += ["--historical", args.historical,
+                         "--historical-start", args.start]
+        if args.no_historical_adjust:
+            assemble_cmd += ["--no-adjust"]
+
+    _run(assemble_cmd)
 
     _run([
         sys.executable, "-m", "scripts.train_p1_tft",
