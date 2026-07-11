@@ -98,7 +98,15 @@ class TFTLiteModel:
             target_cols.add(f"{sym}_low")
         from ..features.lag import default_policy_for
         policy = default_policy_for(train.columns, target_cols=target_cols)
-        feat = build_features(train, policy, lag=self.lag)
+        # Forward-fill observed covariates BEFORE lag to survive raptor's
+        # intermittent ingestion. ffill uses only past values (no look-ahead)
+        # so the covariate-lag gate is preserved. Rows still NaN after ffill
+        # (leading rows before any symbol reported) are dropped by the join.
+        train_filled = train.copy()
+        train_filled[sorted(policy.observed)] = (
+            train_filled[sorted(policy.observed)].ffill()
+        )
+        feat = build_features(train_filled, policy, lag=self.lag)
 
         targets = self._build_targets(train)
 
@@ -144,8 +152,13 @@ class TFTLiteModel:
                 opt.zero_grad()
                 q_preds, _ = model(x)
                 # Two heads → two pinball losses, averaged.
-                l_ret = multi_quantile_pinball(q_preds[0], y[:, 0], q_tensor)
-                l_rng = multi_quantile_pinball(q_preds[1], y[:, 1], q_tensor)
+                # crossing_penalty=0 for the report run — the pinball loss
+                # itself already discourages crossing, and a large penalty
+                # collapses the quantile spread (miscalibration failure mode).
+                l_ret = multi_quantile_pinball(q_preds[0], y[:, 0], q_tensor,
+                                                crossing_penalty=0.0)
+                l_rng = multi_quantile_pinball(q_preds[1], y[:, 1], q_tensor,
+                                                crossing_penalty=0.0)
                 loss = 0.5 * (l_ret + l_rng)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -170,7 +183,12 @@ class TFTLiteModel:
         # value for eval date t is the value at t-1, which lives entirely in
         # train history. So we build features on the train frame and slice.
         train = self._train_frame
-        feat = build_features(train, self._lag_policy, lag=self.lag)
+        # Same ffill as in fit — past-only imputation, structurally leak-free.
+        train_filled = train.copy()
+        train_filled[sorted(self._lag_policy.observed)] = (
+            train_filled[sorted(self._lag_policy.observed)].ffill()
+        )
+        feat = build_features(train_filled, self._lag_policy, lag=self.lag)
         feat_norm = (feat[self._feature_names].values - self._feat_mean) / self._feat_std
         feat_norm_df = pd.DataFrame(
             feat_norm, index=feat.index, columns=self._feature_names
