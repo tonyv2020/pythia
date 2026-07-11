@@ -134,3 +134,24 @@ on fat data (P2 hard-req satisfied). The fat-dataset VERDICT is still PENDING �
 - **eval_mask design APPROVED**: score only within-session bars; baselines `.predict()` on the full
   window, mask only the SCORING — leak-safe (past-only) + apples-to-apples with baselines.
 PR #7 merged; agent-2 proceeds to the full intraday model.
+
+## D13 — P3 p_move baseline design (2026-07-11)
+agent-2 found the real persisted signals in raptor-intel pg: `staging.qqq_pmove` (324 days,
+2023→2026; p_move = scalar move-MAGNITUDE probability, avg 0.157) + `staging.qqq_direction`
+(p_up/p_dn). Methodology calls (helen owns eval):
+1. **p_move → CALIBRATED DISPERSION baseline** — approve agent-2's mapping. p_move is a magnitude
+   probability, NOT a (mean,sigma) return forecast, so map it as mean=0 + sigma = c·g(p_move),
+   with scale c fit on each TRAIN window to ~0.80 train coverage → a legit "raptor-implied-
+   dispersion" baseline scored on the same CRPS/coverage/pinball as the TFT (apples-to-apples).
+   DIRECTION handled separately via `qqq_direction` (p_up/p_dn → mean sign) as its own baseline.
+   Optional (nice-to-have, not required): also report p_move's native move-magnitude skill as
+   Brier/AUC. This respects what each signal IS.
+2. **Granularity → 10-MIN intraday BARS** (matches p_move's native ~10-min grid + the 3-min feed).
+   Horizon stays ~30 min = 3 bars (refines D12: the 30-min *horizon* holds; the *bar size* is
+   10-min, not 30). Native apples-to-apples vs p_move.
+3. **Data asymmetry ACCEPTED (honest):** the intraday-TFT-vs-p_move comparison is limited to the
+   ~1-month tick-feed overlap (raw ticks only since 2026-06-05); report n-on-overlap explicitly.
+   No free intraday backfill (unlike daily). Intraday verdict stays thin until tick history
+   accrues — stated openly, not hidden.
+Separately: the FAT DAILY VERDICT is still pending — agent-2 to RUN scripts/nightly_retrain
+(defaults→backfill) NOW; it is independent of the P3 work.
