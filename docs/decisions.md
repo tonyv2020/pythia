@@ -110,3 +110,14 @@ cutover so no seam with raptor's raw recent data. (2) Determinism approved — b
 default path byte-deterministic, freezable via `compute_dataset_hash`. **Merged.** NEXT: re-run
 the daily walk-forward on the fattened set → updated verdict (does the model show skill on 8
 years, or is the null robust? — the genuinely interesting question).
+
+## D11 — P1 phase 2b/c verified + merged; P1 COMPLETE (2026-07-11)
+Twin's PR #3 (p1/registry-serve): **model registry** (versioned — (model_name, model_version) PK,
+trained_at, `dataset_hash`, `walk_forward_report_json`, `artifact_uri`, `git_sha` = proper
+provenance) + **FastAPI inference API** (`GET /latest` → per-horizon quantiles; `GET
+/variable-importance` → TFT VSN weights = drivers; `/health`) + **nightly-retrain CronJob**
+(09:15 UTC Mon-Fri, image `pythia-trainer:0.1.0`, runs `scripts.nightly_retrain`). helen-verified:
+suite green (52 pass incl. lag/leak + `test_registry_serve`). Merged. **P1 is COMPLETE.**
+**REQUIREMENT flagged:** the nightly retrain + the registry's 'latest' (what P2's panel serves)
+MUST train on the **backfilled** (D8/D10) dataset (n=1869), NOT the thin opt-out default — else
+the panel would show a data-starved model. Released **P2** (raptor daily forecast panel).
