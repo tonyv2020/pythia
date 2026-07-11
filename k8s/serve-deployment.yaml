@@ -1,0 +1,54 @@
+# Pythia inference API — read-only FastAPI over the pythia_models registry.
+# Read-only + tiny → 1 replica is plenty until P4 overlays add traffic.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pythia-serve
+  namespace: pythia
+  labels: { app: pythia-serve }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: pythia-serve }
+  template:
+    metadata:
+      labels: { app: pythia-serve }
+    spec:
+      containers:
+        - name: serve
+          image: registry.lan/pythia-serve:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: PYTHIA_REGISTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: pythia-db
+                  key: dsn
+            - name: PYTHIA_CORS_ORIGINS
+              value: "https://raptor.tonyvigna.com,https://tonyvigna.com"
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits:   { cpu: "1", memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pythia-serve
+  namespace: pythia
+spec:
+  selector: { app: pythia-serve }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
