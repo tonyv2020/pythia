@@ -75,3 +75,25 @@ Merged as PR #1 (c75b7ab). Released the twin to P1 phase 2 (TFT trainer + model 
 inference API + real backtest run). **Remaining P1 acceptance is unchanged and non-negotiable:**
 the real training pass must be CALIBRATED (P10–P90 ≈ 0.80) and report skill-vs-baseline HONESTLY
 — a null result vs random-walk is an acceptable, publishable outcome; overclaiming is not.
+
+## D8 — Backfill historical daily bars (2026-07-11)
+DATA GAP found in P1: raptor only began ingesting most of the macro board on 2026-06-05, so
+the daily walk-forward had just **n=214 obs / 14 covariates** — too thin for a meaningful
+verdict. **Decision:** backfill years of historical daily OHLCV for QQQ + the full 20-symbol
+board from a free source (yfinance/stooq) into pythia's dataset (historical source for old
+bars, raptor's live feed for recent). The covariate-lag gate + ffill-past-only apply
+unchanged; it feeds the nightly retrain so the daily model and its verdict firm up
+automatically. **Why:** a "null skill" verdict on 1 month of thin data is weak; on 5+ years it
+is a real statement. Cheap and clearly correct. Routed to agent-2 (data lane).
+
+## D9 — P1 daily-model verdict: calibrated, no edge vs random-walk — ACCEPTED (2026-07-11)
+helen-verified from `data/report.json` (TFT-lite, n=214, 22 walk-forward splits):
+- **Calibration PASS:** tft_lite cov80 = 0.780 (∈ [0.75, 0.85]); *better*-calibrated than
+  random-walk (cov80 0.939, over-dispersed — report flags RW itself as miscalibrated).
+- **Skill:** does NOT beat RW — CRPS 0.0097 vs RW 0.0087; MAE-skill −0.20; hit-rate 0.44.
+  Null-to-negative point/CRPS skill = no forecasting edge on daily QQQ returns.
+- **Leakage clean:** lag/leak tests pass in the real pipeline (8 passed).
+**Verdict: ACCEPTED** — a scientifically valid, honest result, reported with zero overclaiming.
+Exactly what the rails were for. Verdict is on thin data (see D8); re-assess after backfill.
+Ffill-past-only (twin caveat 3) confirmed leak-safe. Released P1 phase-2b/c (registry + API +
+nightly retrain), P2 (raptor panel), and P3 (intraday, agent-2).
