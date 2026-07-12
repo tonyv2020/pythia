@@ -393,3 +393,14 @@ auto-populate on the next NIGHTLY RETRAIN (which registers a model carrying atte
 **FOLLOW-UP:** after that retrain, re-verify the strip shows real per-bar weights + the honest
 diffuse-attention note when ~uniform — that validates the PR #25 capture end-to-end (unverified until a
 model carries the array; if it still says "not available" post-retrain, the capture is broken).
+
+## D28 — P5a (multi-target toggle) + P5b (breakout pill) verified live (2026-07-12, helen)
+Screenshot-verified on raptor.tonyvigna.com (base=/ holds, assets from /assets/, bundle index-DlBJCewQ.js).
+P5a: the Pythia daily-forecast panel has a **Target: Price (return) | Range** toggle, each target with
+its OWN cov80 badge + skill-vs-baseline scorecard (price shows the honest MISCALIBRATED 0.737; range
+conformal-calibrated to ~0.84 GREEN per D26). P5b: the **Breakouts (rolling 20) diagnostic** pill reads
+**AMBER · rolling 60% vs 20% expected (+40pp)** BUT **lifetime breach 24% ~ 20% over n=2640 =
+structurally calibrated**, framed as a RECENT vol-regime drift (not alpha) — both rates always shown vs
+the 20% expectation, recent breach events listed, honest recent-vs-structural verdict. No alpha copy.
+**P5a + P5b = DONE.** Remaining: **P5c real attention bars** (still "not available for this model
+version" — pending the nightly retrain populating attention_weights; re-verify then via /tmp/pythia_attn_check.py).
