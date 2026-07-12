@@ -31,6 +31,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import Engine, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.dialects.postgresql import JSONB
 
 from ..config import DEFAULT_DB_DSN
@@ -86,6 +87,14 @@ class ModelRegistry:
         self._ensured = False
 
     def ensure_schema(self) -> None:
+        """Idempotent bootstrap.
+
+        If the caller's role lacks CREATE on the target schema but the
+        table already exists (the common prod path when the registry role
+        is INSERT/UPDATE-only, e.g. raptor_ro), swallow the
+        InsufficientPrivilege ONLY when we can verify the table is already
+        there — a DBA created it out-of-band. Any other error still raises.
+        """
         if self._ensured:
             return
         ddl = text(
@@ -105,8 +114,17 @@ class ModelRegistry:
                 ON pythia_models (model_name, trained_at DESC);
             """
         )
-        with self.engine.begin() as conn:
-            conn.execute(ddl)
+        try:
+            with self.engine.begin() as conn:
+                conn.execute(ddl)
+        except ProgrammingError:
+            # InsufficientPrivilege — verify the table already exists.
+            with self.engine.connect() as conn:
+                exists = conn.execute(text(
+                    "SELECT 1 FROM pg_class WHERE relname = 'pythia_models' AND relkind = 'r'"
+                )).first()
+            if exists is None:
+                raise
         self._ensured = True
 
     def register(
