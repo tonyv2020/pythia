@@ -87,3 +87,48 @@ def test_adapter_fit_predict_on_synthetic() -> None:
     fc = model.predict(eval_idx)
     assert len(fc.mean) == 5
     assert (fc.sigma > 0).all()
+
+
+def test_adapter_captures_last_attention() -> None:
+    """P5c: after predict(), the adapter exposes a length-encoder_length
+    attention array from the LAST forward pass."""
+    torch.manual_seed(0)
+    idx = pd.date_range("2024-01-01", periods=400, freq="B")
+    rng = np.random.default_rng(0)
+    r = rng.normal(0.0, 0.01, size=len(idx))
+    px = 100.0 * np.exp(np.cumsum(r))
+    df = pd.DataFrame({
+        "QQQ_close": px,
+        "SPY_close": px * (1 + rng.normal(0, 0.001, size=len(idx))),
+        "QQQ_volume": rng.integers(1_000_000, 5_000_000, size=len(idx)),
+        "SPY_volume": rng.integers(500_000, 2_000_000, size=len(idx)),
+        "dow": [d.weekday() for d in idx],
+        "month": idx.month,
+        "dom": idx.day,
+        "is_monday": (idx.weekday == 0),
+        "is_friday": (idx.weekday == 4),
+        "is_month_end": False,
+        "is_quarter_end": False,
+        "days_to_fomc": np.arange(len(idx)) % 45,
+        "is_earnings_season": (idx.month % 3 == 1),
+    }, index=idx)
+    train = df.iloc[:350]
+    eval_idx = df.index[350:355]
+    model = TFTLiteModel(
+        target_col="QQQ_close",
+        encoder_length=20,
+        hidden_size=8,
+        max_epochs=2,
+        batch_size=16,
+        device="cpu",
+    )
+    # Before fit/predict, no attention captured yet.
+    assert model.last_attention_weights is None
+    model.fit(train)
+    model.predict(eval_idx)
+    attn = model.last_attention_weights
+    assert attn is not None
+    assert len(attn) == 20  # encoder_length
+    # softmax → sums to ~1, all non-negative.
+    assert all(w >= 0 for w in attn)
+    assert 0.98 < sum(attn) < 1.02

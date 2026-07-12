@@ -75,6 +75,22 @@ class TFTLiteModel:
     _train_frame: pd.DataFrame | None = field(default=None, init=False, repr=False)
     _lag_policy: LagPolicy | None = field(default=None, init=False, repr=False)
 
+    # P5c attention snapshot: length-``encoder_length`` list of temporal
+    # attention weights captured on the LAST predict() call. Panel renders
+    # this as the "which past bars did the model weight" strip. None if the
+    # model has not been used to predict yet, or if predict() ran on an
+    # empty eval index.
+    _last_attention: list[float] | None = field(default=None, init=False, repr=False)
+
+    @property
+    def last_attention_weights(self) -> list[float] | None:
+        """Return the last predict()'s attention weights over the encoder window.
+
+        Length = encoder_length; sums to ~1 (softmax over past bars). None if
+        no forward pass has run yet.
+        """
+        return self._last_attention
+
     def _build_targets(self, frame: pd.DataFrame) -> pd.DataFrame:
         px = frame[self.target_col]
         r = return_target(px).rename("y_return")
@@ -225,6 +241,14 @@ class TFTLiteModel:
             preds.append((float(q_ret[q_idx_50]),
                           float(q_ret[q_idx_10]),
                           float(q_ret[q_idx_90])))
+        # P5c: after the loop, stash the LAST forecast's temporal attention
+        # (length encoder_length, sums to ~1). Only meaningful if at least one
+        # real (non-fallback) forecast ran; otherwise leave None.
+        last_attn = getattr(model, "_last_attn_w", None)
+        if last_attn is not None and last_attn.ndim >= 2 and last_attn.size(0) >= 1:
+            # Take the last batch item (== the last-forecast anchor because
+            # we run predict one-at-a-time in a for loop).
+            self._last_attention = last_attn[-1].cpu().numpy().astype(float).tolist()
 
         # ProbForecast wants a Normal(mean, sigma) surrogate — collapse
         # P10/P90 to sigma via Normal quantile scaling (2*inv_norm_cdf(0.9)).

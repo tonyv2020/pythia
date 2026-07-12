@@ -45,6 +45,12 @@ class Report:
     mae_skill_vs_rw: float | None = None
     per_split: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    # P5c: temporal attention weights from the LAST split's LAST forecast
+    # (length = encoder_length; softmax over past bars). Only populated for
+    # models that expose ``last_attention_weights`` after ``predict()`` —
+    # currently just the TFTLite family. Panel renders this as the small
+    # "which past bars did the model weight" strip under the drivers.
+    attention_weights: list[float] | None = None
 
     def as_dict(self) -> dict:
         d = self.__dict__.copy()
@@ -163,6 +169,11 @@ def run_backtest(
             model = factory()
             model.fit(train_frame)
             fc: ProbForecast = model.predict(y_true_idx)
+            # P5c: capture attention weights from models that expose them
+            # (TFTLite). Look through wrappers (Conformal ↝ base) to get the
+            # underlying adapter. Non-TFT models return None → ignored.
+            attn_source = getattr(model, "base", model)
+            last_attn = getattr(attn_source, "last_attention_weights", None)
             if len(fc.mean) != len(y_true_idx):
                 raise RuntimeError(
                     f"{name} produced {len(fc.mean)} predictions for "
@@ -184,6 +195,7 @@ def run_backtest(
                     "p10": p10.tolist(),
                     "p50": p50.tolist(),
                     "p90": p90.tolist(),
+                    "attention_weights": last_attn,
                 }
             )
 
@@ -220,6 +232,17 @@ def _aggregate(
         p50 = np.concatenate([np.asarray(r["p50"]) for r in records])
         p90 = np.concatenate([np.asarray(r["p90"]) for r in records])
 
+        # P5c: pick up the LAST split's attention weights (the most recent
+        # forecast's "which past bars did we weight" snapshot). Older splits
+        # would give a stale answer; if the model didn't expose any (non-TFT)
+        # the field stays None.
+        last_attention = None
+        for rec in reversed(records):
+            candidate = rec.get("attention_weights")
+            if candidate is not None:
+                last_attention = list(candidate)
+                break
+
         reports[name] = Report(
             model_name=name,
             n_splits=len(records),
@@ -231,6 +254,7 @@ def _aggregate(
             pinball_50=float(pinball_loss(y_true, p50, 0.50)),
             pinball_10=float(pinball_loss(y_true, p10, 0.10)),
             pinball_90=float(pinball_loss(y_true, p90, 0.90)),
+            attention_weights=last_attention,
         )
 
     # MAE-skill vs random-walk: only if RW report is available and non-NaN.
