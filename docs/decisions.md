@@ -202,3 +202,20 @@ PYTHIA_DB_DSN — decoupled tables, shared pg instance), ingress `/pythia/api/*`
 ProxyProvider — so P2's raptor panel (raptor-intel PR #34) consumes it live. Chose build-serve-now
 over hold-for-#34: we are driving to deployment, serve+panel ship together, and helen
 screenshot-VERIFIES P2 live rather than blocking on a frontend code review.
+
+## D17 — LIVE INCIDENT (raptor white-screen) + resolution (2026-07-12, weekend)
+The Pythia daily-forecast panel (raptor-intel #34/#35) crashed the ENTIRE raptor dashboard (React
+#310, hooks-order violation) when /pythia/api/* returned 404 — no error boundary → the whole SPA
+blanked (body=5 chars). Two deployment root causes for the 404: (a) the pythia registry couldn't
+create its table in raptor appdb — InsufficientPrivilege: permission denied for schema public → no
+model registered; (b) model-name mismatch (panel tft_lite_daily vs retrain tft_lite_daily_qqq).
+RESOLUTION (Tony OK'd weekend downtime → proper fix, no rollback): twin shipped **PR #36** (error
+boundary + hooks-order fix) → raptor now LOADS + the panel degrades gracefully. **helen-verified
+live: body 3357, dashboard renders, no React #310, the 404 is caught by the boundary.**
+**HARD NEW P2 GATE:** the dashboard must load even if the forecast API is down — this was NOT
+verified live before P2 shipped; that's the real miss.
+REMAINING (P2 polish, not blocking the cleared incident): (a) the served model is MISCALIBRATED
+cov80=0.586 (trained 40/32) — reverting the nightly config to 60/16 to serve a CALIBRATED model
+(~D14's 0.781); (b) /pythia/api/variable-importance still 404s (name/endpoint) — fix to serve or
+gracefully-empty. **P2 accepted once the panel shows the calibrated model + drivers (or clean
+graceful states) live.**
