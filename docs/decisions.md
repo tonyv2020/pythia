@@ -219,3 +219,20 @@ cov80=0.586 (trained 40/32) — reverting the nightly config to 60/16 to serve a
 (~D14's 0.781); (b) /pythia/api/variable-importance still 404s (name/endpoint) — fix to serve or
 gracefully-empty. **P2 accepted once the panel shows the calibrated model + drivers (or clean
 graceful states) live.**
+
+## D18 — Daily calibration is seed-noisy -> conformal calibration, NOT seed-hunting (2026-07-12)
+The raw TFT-lite daily calibration is NONDETERMINISTIC across training runs (cov80: 0.586 @40/32;
+0.705 @60/16-80ep; 0.781 @an earlier 60/16 run — SAME code + SAME fat dataset). So any single
+run's cov80 is a noisy, seed-dependent number. FORK (agent-2 asked): (a) ship whatever 100-ep
+lands + log "not robustly calibrated", or (b) hyperparameter × seed search, pick the
+median-calibrated config as canonical.
+DECISION — NEITHER as stated. (b) is CHERRY-PICKING a lucky seed = overfitting the calibration
+metric; it would show a calibration that won't hold on new data (dishonest). (a) ships a
+possibly-miscalibrated model. Instead **(c): apply PER-TRAIN-WINDOW CONFORMAL calibration to the
+TFT's predictive spread** — fit a scale on each TRAIN window so train coverage ~= 0.80, apply
+out-of-sample (the SAME technique agent-2 already uses for the p_move baseline's sigma). This makes
+calibration ROBUST + honest BY CONSTRUCTION, independent of the training seed, with EVAL coverage
+as the honest out-of-sample check. **Calibration != skill:** the null-vs-RW CRPS verdict (D14) is
+UNAFFECTED — conformal scaling right-sizes the bands, it does not manufacture edge. Let the 100-ep
+run finish as a data point, but the CANONICAL fix is the conformal layer. This also fixes P2's
+served model so the panel shows a genuinely-calibrated cone + the honest "no edge vs RW" scorecard.
