@@ -170,3 +170,19 @@ within noise of the 50% martingale prior). MORE DATA HELPED (MAE-skill −0.20 o
 result for daily QQQ returns — a scientifically valid null (D2). The panel shows the calibrated
 cone + an honest "no edge vs random-walk" scorecard. Any residual signal is more likely to
 surface in the intraday model (P3) vs p_move — the next test.
+
+## D15 — Intraday baseline verdict + TFT greenlight (2026-07-12)
+agent-2's intraday walk-forward (PR #9; 10-min bars, 30-min horizon, n=7242 on the ~1-month tick
+overlap; horizon-purge h-1 embargo + eval_mask within-session — tests present + green). BASELINE
+verdict (no TFT yet), helen-verified:
+- random_walk     : cov80 0.956 | CRPS 0.001673
+- last_return     : cov80 0.933 | CRPS 0.003099 | skill −0.93
+- raptor_p_move   : cov80 0.871 | CRPS 0.001681 | skill 0.0  (BEST-calibrated — carries real
+  dispersion, tightens coverage vs RW's over-dispersed 0.956, but MATCHES RW on CRPS)
+- raptor_direction: cov80 0.958 | CRPS 0.001573 | skill −0.006  (≈ RW; no 30-min directional edge)
+Read: p_move has real dispersion info (best cov80) but no CRPS edge; no directional edge at 30-min;
+all mildly over-dispersed → the TFT's job is a TIGHTER conditional sigma than these.
+Decisions: (a) floor-0.02 sigma fix APPROVED — disclose it in the methodology (not a hidden fudge).
+(b) GREENLIGHT the intraday TFT-lite (deep sample, honest+solid baselines, same scored path). Train
+on the 2080 Ti for the reported verdict (CPU ok for a smoke test only). The intraday-TFT-vs-p_move
+verdict is the next Tony one-liner.
