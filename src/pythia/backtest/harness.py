@@ -55,10 +55,18 @@ class Report:
 ModelFactory = Callable[[], Model]
 
 
-def _target_returns(frame: pd.DataFrame, target_col: str) -> pd.Series:
-    """Log returns of the target series; NaN on the first row."""
+def _target_returns(frame: pd.DataFrame, target_col: str, horizon: int = 1) -> pd.Series:
+    """Log returns of the target series over ``horizon`` bars.
+
+    ``horizon == 1`` (default): one-step TRAILING return ``log(px[t]/px[t-1])`` —
+    the original behaviour, NaN on the first row (daily P1 no-op, bit-identical).
+    ``horizon > 1``: FORWARD h-bar return ``log(px[t+h]/px[t])`` at row t — the
+    move the model, forecasting AT bar t, is predicting; NaN on the last h rows.
+    """
     px = frame[target_col].astype(float)
-    return np.log(px / px.shift(1))
+    if horizon == 1:
+        return np.log(px / px.shift(1))
+    return np.log(px.shift(-horizon) / px)
 
 
 def run_backtest(
@@ -67,6 +75,9 @@ def run_backtest(
     splits: Iterable[WalkForwardSplit],
     model_factories: Mapping[str, ModelFactory],
     rw_name: str = "random_walk",
+    eval_mask: "pd.Series | Callable[[pd.DataFrame], pd.Series] | None" = None,
+    horizon: int = 1,
+    purge_last_train_rows: int | None = None,
 ) -> dict[str, Report]:
     """Fit each model on each split, score, aggregate.
 
@@ -74,11 +85,40 @@ def run_backtest(
     model instance (needed because ``fit`` should not accumulate state
     across splits — that would be look-ahead by another name).
 
+    ``eval_mask`` (P3): restrict SCORING to a subset of eval rows without
+    disturbing the walk-forward geometry. A boolean ``pd.Series`` indexed on
+    ``frame.index`` (True = score this row), OR a callable ``frame -> Series``,
+    OR ``None`` (default = score everything, so daily P1 is a no-op). The mask
+    is applied ONLY at metric-compute time — every model still ``predict``s the
+    FULL eval window, so baselines are not retrained on filtered data and
+    metrics stay apples-to-apples. P3 uses it to score within-session bars only
+    (drop the overnight-gap rows) via ``data.intraday.overnight_mask``.
+
+    ``horizon`` (P3): bars ahead the target spans. ``horizon=1`` (default) is
+    the one-step daily no-op. ``horizon>1`` scores the FORWARD h-bar return
+    ``log(px[t+h]/px[t])``. To keep the walk-forward leak-free at h>1:
+      * the last ``purge_last_train_rows`` rows (default ``h-1``) are sliced off
+        each split's TRAIN frame before ``.fit`` — their forward target would
+        reach past train_end into eval;
+      * eval rows within ``h-1`` of the split's eval_end are dropped from
+        scoring — their forward target reaches past the split window;
+      * ``horizon > eval_size`` raises (a split with no clean eval is exactly
+        the leak we purge against — fail loud, never silent).
+
     Returns ``{model_name: Report}``. If a factory named ``rw_name`` is
     included, MAE-skill-vs-RW is computed for every other model.
     """
+    if horizon < 1:
+        raise ValueError("horizon must be >= 1")
+    purge = purge_last_train_rows if purge_last_train_rows is not None else max(horizon - 1, 0)
+
     frame = frame.sort_index()
-    returns = _target_returns(frame, target_col)
+    returns = _target_returns(frame, target_col, horizon)
+
+    mask_series: pd.Series | None = None
+    if eval_mask is not None:
+        resolved = eval_mask(frame) if callable(eval_mask) else eval_mask
+        mask_series = resolved.astype(bool)
 
     per_split_records: dict[str, list[dict]] = {name: [] for name in model_factories}
 
@@ -87,12 +127,37 @@ def run_backtest(
         train_frame, eval_frame = slice_train_eval(frame, split)
         if eval_frame.empty:
             continue
+        # Rail 2: a horizon wider than the eval window can't be scored cleanly.
+        if horizon > len(eval_frame):
+            raise RuntimeError(
+                f"horizon={horizon} exceeds eval window size {len(eval_frame)} — "
+                f"no leak-free eval rows; widen eval_size or shrink horizon"
+            )
+        # Purge the last `purge` train rows (their forward target reaches eval).
+        if purge > 0 and len(train_frame) > purge:
+            train_frame = train_frame.iloc[:-purge]
+
         y_true = returns.loc[eval_frame.index]
-        # Skip splits where the target series has NaN (e.g., first row).
+        # Skip rows where the target is NaN (first row for h=1; last h rows for
+        # forward-h at the very end of the frame).
         y_true = y_true.dropna()
+        # Rail 1: drop eval rows within h-1 of eval_end — their forward target
+        # spans past this split's window into the next split's data.
+        cut = max(horizon - 1, 0)
+        if cut > 0:
+            y_true = y_true.iloc[:-cut] if len(y_true) > cut else y_true.iloc[:0]
         if y_true.empty:
             continue
         y_true_idx = y_true.index
+
+        # Score-time mask (positional over y_true_idx). Models still predict
+        # the FULL eval window below; we only drop masked rows from metrics.
+        if mask_series is not None:
+            keep = mask_series.reindex(y_true_idx).fillna(False).to_numpy(dtype=bool)
+            if not keep.any():
+                continue
+        else:
+            keep = np.ones(len(y_true_idx), dtype=bool)
 
         for name, factory in model_factories.items():
             model = factory()
@@ -103,16 +168,22 @@ def run_backtest(
                     f"{name} produced {len(fc.mean)} predictions for "
                     f"{len(y_true_idx)} eval rows"
                 )
+            yt = np.asarray(y_true.to_list())[keep]
+            mean = np.asarray(fc.mean.to_list())[keep]
+            sigma = np.asarray(fc.sigma.to_list())[keep]
+            p10 = np.asarray(fc.quantile(0.10).to_list())[keep]
+            p50 = np.asarray(fc.quantile(0.50).to_list())[keep]
+            p90 = np.asarray(fc.quantile(0.90).to_list())[keep]
             per_split_records[name].append(
                 {
                     "eval_start": split.eval_start.isoformat(),
                     "eval_end": split.eval_end.isoformat(),
-                    "y_true": y_true.to_list(),
-                    "mean": fc.mean.to_list(),
-                    "sigma": fc.sigma.to_list(),
-                    "p10": fc.quantile(0.10).to_list(),
-                    "p50": fc.quantile(0.50).to_list(),
-                    "p90": fc.quantile(0.90).to_list(),
+                    "y_true": yt.tolist(),
+                    "mean": mean.tolist(),
+                    "sigma": sigma.tolist(),
+                    "p10": p10.tolist(),
+                    "p50": p50.tolist(),
+                    "p90": p90.tolist(),
                 }
             )
 
