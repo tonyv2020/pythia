@@ -96,31 +96,47 @@ class RaptorPMove(Model):
         self.sigma_floor = sigma_floor
         self._c: float | None = None
         self._fallback_pmove: float | None = None
+        self._flat_sigma: float | None = None
+        self._fitted: bool = False
 
     def fit(self, train: pd.DataFrame) -> None:
         r = _forward_log_returns(train[self.target_col], self.horizon)
+        # Flat RW-style σ from ALL train forward-returns — the graceful fallback
+        # when p_move is too sparse to calibrate in this window.
+        r_clean = r.dropna()
+        self._flat_sigma = (
+            max(float(r_clean.std(ddof=1)), self.sigma_floor)
+            if len(r_clean) >= 2 else self.sigma_floor
+        )
         pm = self.p_move.reindex(train.index)
         df = pd.concat([r.rename("r"), pm.rename("pm")], axis=1).dropna()
         df = df[df["pm"] >= self.calib_floor]
         if len(df) < self.min_train_rows:
-            raise RuntimeError(
-                f"RaptorPMove needs >= {self.min_train_rows} aligned train rows "
-                f"with p_move >= {self.calib_floor}, got {len(df)}"
-            )
-        # sigma_t = c * pm_t. Want P(|r| <= _Z80 * sigma) = 0.80 over train:
-        # c = 0.80-quantile of |r| / (_Z80 * pm) over the floored calibration set.
-        z = df["r"].abs() / (_Z80 * df["pm"])
-        self._c = float(np.quantile(z, 0.80))
-        self._fallback_pmove = float(df["pm"].median())
+            # Not enough p_move signal in this window → DEGRADE to the flat σ
+            # (behaves like RW here) rather than crash the whole backtest. Honest:
+            # early / p_move-sparse windows carry no usable move-prob signal.
+            self._c = None
+            self._fallback_pmove = None
+        else:
+            # sigma_t = c * pm_t. Want P(|r| <= _Z80 * sigma) = 0.80 over train:
+            # c = 0.80-quantile of |r| / (_Z80 * pm) over the floored calib set.
+            z = df["r"].abs() / (_Z80 * df["pm"])
+            self._c = float(np.quantile(z, 0.80))
+            self._fallback_pmove = float(df["pm"].median())
+        self._fitted = True
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
-        assert self._c is not None, "RaptorPMove not fit"
-        pm = self.p_move.reindex(eval_index)
-        # Missing p_move for an eval bar → train-median; near-zero → floored so a
-        # tiny move-prob can't collapse sigma.
-        pm = pm.fillna(self._fallback_pmove).clip(lower=self.calib_floor)
-        sigma = (self._c * pm).clip(lower=self.sigma_floor)
+        assert self._fitted, "RaptorPMove not fit"
+        if self._c is None:
+            # Degraded: flat σ for every eval bar (no p_move modulation).
+            sigma = np.full(len(eval_index), self._flat_sigma)
+        else:
+            pm = self.p_move.reindex(eval_index)
+            # Missing p_move for an eval bar → train-median; near-zero → floored
+            # so a tiny move-prob can't collapse sigma.
+            pm = pm.fillna(self._fallback_pmove).clip(lower=self.calib_floor)
+            sigma = (self._c * pm).clip(lower=self.sigma_floor).to_numpy()
         return ProbForecast(
             mean=pd.Series(np.zeros(len(eval_index)), index=eval_index),
-            sigma=pd.Series(sigma.to_numpy(), index=eval_index),
+            sigma=pd.Series(sigma, index=eval_index),
         )
