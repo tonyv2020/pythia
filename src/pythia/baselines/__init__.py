@@ -2,6 +2,13 @@
 
 from .last_return import LastReturn
 from .random_walk import RandomWalk
-from .raptor_p_move import RaptorPMoveStub
+from .raptor_direction import RaptorDirection
+from .raptor_p_move import RaptorPMove, RaptorPMoveStub
 
-__all__ = ["RandomWalk", "LastReturn", "RaptorPMoveStub"]
+__all__ = [
+    "RandomWalk",
+    "LastReturn",
+    "RaptorPMove",
+    "RaptorPMoveStub",
+    "RaptorDirection",
+]

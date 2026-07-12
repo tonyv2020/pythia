@@ -1,31 +1,42 @@
-"""Documented stub for raptor's ``p_move`` baseline.
+"""Raptor p_move baselines.
 
-The task calls for scoring against raptor's ``p_move`` — but wiring the
-live raptor endpoint into P0 would (a) make the harness depend on a running
-raptor at eval time and (b) make replays non-reproducible without a
-snapshot of p_move's history.
+``RaptorPMove`` (P3, real): raptor's ``p_move`` is a scalar MAGNITUDE
+probability emitted each intraday bar (staging.qqq_pmove: date, bar_time,
+p_move, oos). It is NOT a (mean, sigma) return forecast, so — per helen's D13
+call — we use it as a CALIBRATED DISPERSION baseline:
 
-P0 decision (documented for helen): ship a stub that raises rather than a
-fake number. Sha1: no accidentally-fabricated skill. P1 will add:
-    (1) a persistent p_move history table in raptor,
-    (2) an adapter here that reads from that snapshot,
-so the harness can score against p_move on the SAME walk-forward splits.
+    mean_t  = 0                       (p_move claims no direction)
+    sigma_t = c * p_move_t            (bigger move-prob → wider band)
+
+with the single scale ``c`` fit PER TRAIN WINDOW so the P10–P90 band covers
+~80% of the realized (horizon-consistent) train moves. Then the harness scores
+it on CRPS / coverage / pinball apples-to-apples with the TFT. Direction is a
+SEPARATE baseline (``RaptorDirection``, from staging.qqq_direction).
+
+The p_move history is injected as a ``pd.Series`` indexed on the frame's bar
+timestamps, so unit tests use a deterministic fixture and never touch the
+raptor Postgres (which the pipeline reads live on achilles).
+
+``RaptorPMoveStub`` (kept): the original documented not-wired fallback that
+raises rather than fabricating — still exported so a harness config can list
+p_move as planned when no history is available.
 """
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from ..backtest.protocols import Model, ProbForecast
 
+# z such that P(|Z| <= z) = 0.80 for Z ~ N(0,1)  → the P10–P90 half-width in σ.
+_Z80 = 1.2815515594457412
+
 
 class RaptorPMoveStub(Model):
-    """Not-yet-implemented raptor-p_move baseline.
-
-    fit() succeeds silently so a harness config can still list it as a
-    planned baseline; predict() raises so no run silently omits it and
-    reports as though everything passed.
-    """
+    """Not-yet-wired raptor-p_move baseline. ``predict`` raises so no run
+    silently omits it and reports as though everything passed. Superseded by
+    ``RaptorPMove`` where a p_move history snapshot is available."""
 
     def __init__(self, target_col: str) -> None:
         self.target_col = target_col
@@ -35,6 +46,73 @@ class RaptorPMoveStub(Model):
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
         raise NotImplementedError(
-            "raptor p_move adapter not wired in P0; land raptor p_move history "
-            "snapshot + adapter in P1 (tracked as a follow-up task)."
+            "raptor p_move history not provided; use RaptorPMove(p_move=...) "
+            "with a staging.qqq_pmove snapshot, or keep this stub as a planned "
+            "baseline placeholder."
+        )
+
+
+def _forward_log_returns(px: pd.Series, horizon: int) -> pd.Series:
+    """Move over [t, t+horizon]: log(px[t+h]) - log(px[t]). Last ``h`` rows NaN.
+
+    Aligned at the EMISSION bar t — matching raptor's p_move, which is emitted
+    at t forecasting the next ~horizon bars.
+    """
+    lp = np.log(px.astype(float))
+    return lp.shift(-horizon) - lp
+
+
+class RaptorPMove(Model):
+    """Calibrated-dispersion baseline driven by raptor ``p_move``.
+
+    ``p_move``: Series indexed on bar timestamps → p_move in [0,1].
+    ``horizon``: bars ahead the target spans (P3 = 3 bars ≈ 30 min on 10-min
+    bars; default 1 keeps it usable on any single-step frame).
+    """
+
+    def __init__(
+        self,
+        target_col: str,
+        p_move: pd.Series,
+        horizon: int = 1,
+        min_train_rows: int = 30,
+        pmove_floor: float = 1e-6,
+        sigma_floor: float = 1e-9,
+    ) -> None:
+        if horizon < 1:
+            raise ValueError("horizon must be >= 1")
+        self.target_col = target_col
+        self.p_move = p_move.astype(float)
+        self.horizon = horizon
+        self.min_train_rows = min_train_rows
+        self.pmove_floor = pmove_floor
+        self.sigma_floor = sigma_floor
+        self._c: float | None = None
+        self._fallback_pmove: float | None = None
+
+    def fit(self, train: pd.DataFrame) -> None:
+        r = _forward_log_returns(train[self.target_col], self.horizon)
+        pm = self.p_move.reindex(train.index)
+        df = pd.concat([r.rename("r"), pm.rename("pm")], axis=1).dropna()
+        df = df[df["pm"] > self.pmove_floor]
+        if len(df) < self.min_train_rows:
+            raise RuntimeError(
+                f"RaptorPMove needs >= {self.min_train_rows} aligned train rows "
+                f"with p_move, got {len(df)}"
+            )
+        # sigma_t = c * pm_t. Want P(|r| <= _Z80 * sigma) = 0.80 over train:
+        # c = 0.80-quantile of |r| / (_Z80 * pm).
+        z = df["r"].abs() / (_Z80 * df["pm"])
+        self._c = float(np.quantile(z, 0.80))
+        self._fallback_pmove = float(df["pm"].median())
+
+    def predict(self, eval_index: pd.Index) -> ProbForecast:
+        assert self._c is not None, "RaptorPMove not fit"
+        pm = self.p_move.reindex(eval_index)
+        # Missing p_move for an eval bar → train-median (honest neutral fill).
+        pm = pm.fillna(self._fallback_pmove).clip(lower=self.pmove_floor)
+        sigma = (self._c * pm).clip(lower=self.sigma_floor)
+        return ProbForecast(
+            mean=pd.Series(np.zeros(len(eval_index)), index=eval_index),
+            sigma=pd.Series(sigma.to_numpy(), index=eval_index),
         )
