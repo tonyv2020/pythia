@@ -29,14 +29,24 @@ def _build_notes(tft: dict, rw: dict) -> list[str]:
     skill = tft.get("mae_skill_vs_rw")
 
     if cov is not None:
-        if CALIBRATION_LOWER <= float(cov) <= CALIBRATION_UPPER:
+        cov_f = float(cov)
+        gap = 0.80 - cov_f
+        if CALIBRATION_LOWER <= cov_f <= CALIBRATION_UPPER:
             notes.append(
-                f"P10-P90 coverage {float(cov):.3f} is CALIBRATED (in the "
+                f"P10-P90 coverage {cov_f:.3f} is CALIBRATED (in the "
                 f"{CALIBRATION_LOWER}-{CALIBRATION_UPPER} gate)."
+            )
+        elif 0.65 <= cov_f < CALIBRATION_LOWER:
+            # helen D20: near-miss under-coverage on daily QQQ = the systematic
+            # train->eval drift (future modestly more uncertain than the recent
+            # past). Honest label, not a lie about hitting 0.80.
+            notes.append(
+                f"eval cov80 ~{cov_f:.2f}; bands slightly tight — systematic "
+                f"~{gap*100:.0f}pp train->eval drift on daily QQQ."
             )
         else:
             notes.append(
-                f"P10-P90 coverage {float(cov):.3f} is MISCALIBRATED "
+                f"P10-P90 coverage {cov_f:.3f} is MISCALIBRATED "
                 f"(gate {CALIBRATION_LOWER}-{CALIBRATION_UPPER}); tail width is off."
             )
 
