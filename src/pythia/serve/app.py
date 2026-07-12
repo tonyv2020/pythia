@@ -199,6 +199,32 @@ def create_app(registry: ModelRegistry | None = None) -> FastAPI:
             "variable_importance": weights,
         }
 
+    @app.get("/breakouts")
+    def breakouts(
+        model: str = Query(DEFAULT_MODEL_NAME, min_length=1, max_length=100),
+    ) -> dict:
+        """P5b breakout scorecard: the rolling P10-P90 breach rate vs the ~20%
+        expected under calibration, plus recent breach events. Populated at
+        register time by scripts.register_breakouts (run_breakout_scan ->
+        build_breakouts_response -> report_json['breakouts']). Keyed on the SAME
+        model_version as /latest.
+
+        Absent until that runs → gracefully empty (200 with a null block), so
+        the panel hides the scorecard rather than erroring — same graceful-empty
+        contract as /variable-importance (helen D17). It is a calibration
+        diagnostic, NOT a trade signal.
+        """
+        rec = _reg().latest(model)
+        if rec is None:
+            raise HTTPException(status_code=404, detail=f"no model registered under {model!r}")
+        block = rec.report_json.get("breakouts")
+        return {
+            "model_name": rec.model_name,
+            "model_version": rec.model_version,
+            "trained_at": rec.trained_at.isoformat(),
+            "breakouts": block,
+        }
+
     # ------------------------------------------------------------------
     # /events (P4): known-future event markers for the overlaid cone panel.
     # Sourced from static calendars per D3 (dataset must be replayable), no
