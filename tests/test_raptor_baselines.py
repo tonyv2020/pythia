@@ -83,14 +83,19 @@ def test_pmove_nearzero_tail_does_not_explode_sigma():
     assert fc.sigma.max() < 0.1
 
 
-def test_pmove_too_few_rows_raises():
-    df, idx = _bars(n=40)
-    m = RaptorPMove("QQQ_close", _pmove(idx), horizon=1, min_train_rows=100)
-    try:
-        m.fit(df)
-        assert False, "expected RuntimeError"
-    except RuntimeError:
-        pass
+def test_pmove_sparse_pmove_degrades_to_flat_sigma_not_crash():
+    """When a train window lacks enough p_move>=floor rows, RaptorPMove must
+    DEGRADE to a flat RW-style sigma (never crash the whole backtest — the live
+    GPU-run blocker: first split had only 16 qualifying rows)."""
+    df, idx = _bars(n=80)
+    # min_train_rows unreachable → forces the degrade path.
+    m = RaptorPMove("QQQ_close", _pmove(idx), horizon=1, min_train_rows=1000)
+    m.fit(df.iloc[:60])            # must NOT raise
+    assert m._c is None            # degraded mode
+    fc = m.predict(idx[60:75])
+    assert (fc.sigma > 0).all()
+    # Flat mode → constant sigma across eval bars.
+    assert float(fc.sigma.std()) == 0.0
 
 
 def test_pmove_stub_still_raises():
