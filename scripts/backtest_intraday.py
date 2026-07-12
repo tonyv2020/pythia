@@ -44,15 +44,28 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--initial-train", type=int, default=200)
     p.add_argument("--eval-size", type=int, default=39, help="~1 session of 10-min bars")
     p.add_argument("--target", type=str, default="QQQ_close")
+    # Intraday TFT-lite (the REPORTED verdict must be a GPU pass; CPU = smoke).
+    p.add_argument("--with-tft", action="store_true", help="also train + score the intraday TFT-lite")
+    p.add_argument("--encoder-length", type=int, default=39)
+    p.add_argument("--hidden-size", type=int, default=32)
+    p.add_argument("--max-epochs", type=int, default=60)
+    p.add_argument("--tft-batch-size", type=int, default=128)
     args = p.parse_args(argv)
 
     intr = assemble_intraday_dataset(args.start, args.end, bar_minutes=args.bar_minutes)
     p_move = load_pmove_series()
     tilt = load_direction_tilt()
 
+    tft_kwargs = dict(
+        encoder_length=args.encoder_length,
+        hidden_size=args.hidden_size,
+        max_epochs=args.max_epochs,
+        batch_size=args.tft_batch_size,
+    )
     reports = run_intraday_backtest(
         intr.bars, price_col=args.target, p_move=p_move, tilt=tilt,
         horizon=args.horizon, initial_train=args.initial_train, eval_size=args.eval_size,
+        with_tft=args.with_tft, tft_kwargs=tft_kwargs,
     )
 
     out = {name: r.as_dict() for name, r in reports.items()}

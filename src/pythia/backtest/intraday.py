@@ -29,6 +29,8 @@ def run_intraday_backtest(
     initial_train: int = 200,
     eval_size: int = 39,
     rw_name: str = "random_walk",
+    with_tft: bool = False,
+    tft_kwargs: dict | None = None,
 ) -> dict[str, Report]:
     """Run the intraday walk-forward. ``horizon`` bars ≈ the forecast horizon
     (3 × 10-min = 30 min). ``eval_size`` defaults to ~1 session of 10-min bars.
@@ -54,6 +56,15 @@ def run_intraday_backtest(
     if tilt is not None and not tilt.empty:
         factories["raptor_direction"] = lambda: RaptorDirection(
             price_col, tilt, horizon=horizon
+        )
+    if with_tft:
+        # Lazy import: torch only needed on the model path (keeps the baseline
+        # path torch-free). Horizon-consistent forward-h target subclass.
+        from ..models.intraday_tft import IntradayTFTLiteModel
+
+        kw = dict(tft_kwargs or {})
+        factories["tft_lite"] = lambda: IntradayTFTLiteModel(
+            target_col=price_col, horizon=horizon, **kw
         )
 
     return run_backtest(

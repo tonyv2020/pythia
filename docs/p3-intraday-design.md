@@ -74,3 +74,48 @@ verdict.
    calibration/skill on real intraday bars.
 3. Intraday TFT-lite on the 2080 Ti; honest calibration + skill verdict vs
    baselines; served via the P1 inference API pattern. Ping you at each gate.
+
+## Update (D15) — live baseline verdict + the p_move floor fix (disclosed)
+
+Ran on live QQQ (2023-05→2026-07, 8867 session 10-min bars → 222 walk-forward
+splits, n=7242, 30-min = 3-bar horizon). Baselines (fixed):
+
+| model | cov80 | CRPS | skill_vs_RW |
+|---|---|---|---|
+| random_walk | 0.956 | 0.001673 | — |
+| last_return | 0.933 | 0.003099 | −0.93 |
+| raptor_p_move | 0.871 | 0.001681 | 0.0 |
+| raptor_direction | 0.958 | 0.001573 | −0.006 |
+
+Findings: all baselines mildly **over-dispersed** (30-min QQQ returns are
+leptokurtic — a Normal σ from train vol over-covers); robustified p_move is the
+**best-calibrated** baseline (0.871) but **matches RW on CRPS** (no edge);
+direction shows **no 30-min directional edge**. The intraday TFT-lite's job is a
+tighter, conditional σ that beats these on CRPS/pinball, or an honest null.
+
+### p_move `calib_floor` (0.02) — DISCLOSED, not a hidden fudge
+
+The D13 mapping σ=c·p_move is **outlier-fragile**: p_move has a fat near-zero
+tail (median 0.032, ~34% of rows < 0.01, min 3e-5). A near-zero p_move paired
+with a normal realized move explodes `|r|/(z80·p_move)`, dragging the
+0.80-quantile scale `c` up → σ blows up → **CRPS 0.076 (45× RW)**. Fix
+(helen-approved D15, within the σ=c·g(p_move) spec): **drop p_move < 0.02 from
+the per-train-window calibration and floor it in prediction.** Candidates were
+prototyped on live data before choosing — floor-0.02 beat a σ-modulator
+alternative:
+
+| p_move mapping | cov80 | CRPS |
+|---|---|---|
+| current c·p_move | 0.936 | 0.076 |
+| **floor 0.02** | 0.871 | 0.00168 |
+| modulator k=0.5 | 0.904 | 0.00293 |
+
+### Intraday TFT-lite — horizon-consistent target
+
+`models.intraday_tft.IntradayTFTLiteModel` subclasses the daily adapter and
+overrides ONLY the target to the **forward-h** return `log(px[t+h]/px[t])`, so
+the model trains to predict the same quantity the harness scores (the daily
+1-step `return_target` would forecast a 1-bar move while being scored on a
+3-bar move — a silent bug). The REPORTED verdict is a **2080 Ti GPU pass**
+(CPU is smoke-only), scored through `run_intraday_backtest` vs the four
+baselines above.
