@@ -236,3 +236,22 @@ as the honest out-of-sample check. **Calibration != skill:** the null-vs-RW CRPS
 UNAFFECTED — conformal scaling right-sizes the bands, it does not manufacture edge. Let the 100-ep
 run finish as a data point, but the CANONICAL fix is the conformal layer. This also fixes P2's
 served model so the panel shows a genuinely-calibrated cone + the honest "no edge vs RW" scorecard.
+
+## D19 — Intraday verdict + D18 conformal EMPIRICALLY VALIDATED (2026-07-12)
+(A) **D18 validated:** multi-seed proof — RAW TFT eval-cov80 seed-noise spread ~0.22 (0.586 / 0.705 /
+0.781 / 0.809). Conformal shrank it ~10x to ~0.02, centered in-gate. Per-seed eval spread = honest
+OOS proof it generalizes (train-calibration is by-construction). Conformal delivers SEED-INDEPENDENT
+calibration, as premised. The conformal wrapper also fixed a lucky-seed raw run (cov80 0.809, CRPS
+0.00221) into a genuinely-calibrated 0.77 forecaster — accurate story, not a lucky-seed one.
+(B) **INTRADAY VERDICT** (conformal TFT, 10-min bars, 30-min horizon, 3 splits):
+- conformal_tft   : cov80 ~0.774 (CALIBRATED, seed-stable) | CRPS mean 0.00145 | MAE-skill -0.10..-0.23
+- random_walk     : cov80 0.807 | CRPS 0.00127
+- raptor_p_move   : cov80 0.827 | CRPS 0.00154
+- raptor_direction: ~ RW (no directional edge)
+READ: intraday TFT ~TIES p_move on CRPS (beats it 2/3 seeds) but does NOT beat random-walk (RW is the
+floor); no point/directional edge. VERDICT: calibrated, seed-robust, at-parity-with-p_move, NO edge
+over random-walk — mirrors the daily null (D14).
+**OVERALL FINDING:** QQQ returns are essentially a random walk at BOTH daily and 30-min horizons — no
+forecasting edge. Pythia's deliverable is a rigorous, honest, seed-robust CALIBRATED-uncertainty
+model that reports the null transparently. The value is right-sized uncertainty + intellectual
+honesty, not alpha. P3 model+backtest+conformal complete.
