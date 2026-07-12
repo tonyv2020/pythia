@@ -105,8 +105,10 @@ def main(argv: list[str] | None = None) -> int:
         "--initial-train", str(args.initial_train),
         "--eval-size", str(args.eval_size),
         "--max-epochs", str(args.max_epochs),
-        "--encoder-length", "40",
-        "--hidden-size", "32",
+        # D14 cov80 0.781 came from encoder=60 hidden=16; my earlier 40/32
+        # miscalibrated to cov80 0.586. Revert to agent-2s calibrated config.
+        "--encoder-length", "60",
+        "--hidden-size", "16",
         "--batch-size", "32",
         "--report", str(report),
     ])
