@@ -5,7 +5,14 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from pythia.breakouts import EXPECTED_RATE, breakout_rate, detect_breakouts
+from pythia.baselines import RandomWalk
+from pythia.breakouts import (
+    EXPECTED_RATE,
+    breakout_rate,
+    build_breakouts_response,
+    detect_breakouts,
+    run_breakout_scan,
+)
 
 
 def _series(vals, start="2026-01-01"):
@@ -59,3 +66,80 @@ def test_empty_is_safe():
     assert bo.empty
     rate = breakout_rate(bo)
     assert rate.n == 0 and np.isnan(rate.breakout_rate)
+
+
+def _price_frame(n=400):
+    idx = pd.date_range("2024-01-01", periods=n, freq="B")
+    # deterministic pseudo-random walk (no Math.random / np.random needed)
+    steps = np.array([((i * 37) % 11 - 5) / 500.0 for i in range(n)])
+    close = 400.0 * np.exp(np.cumsum(steps))
+    return pd.DataFrame({"QQQ_close": close}, index=idx)
+
+
+def test_scan_is_oos_and_has_schema():
+    scan = run_breakout_scan(
+        _price_frame(), lambda: RandomWalk("QQQ_close"), target_col="QQQ_close",
+        model_version="vtest", initial_train=120, eval_size=40)
+    assert not scan.empty
+    assert list(scan.columns) == [
+        "model_version", "symbol", "ts", "horizon", "direction",
+        "realized", "p10", "p90", "exceeded", "magnitude", "oos"]
+    assert scan["oos"].all()
+    assert (scan["model_version"] == "vtest").all()
+    # direction only ever up/down/none; exceeded iff not none
+    assert set(scan["direction"].unique()) <= {"up", "down", "none"}
+    assert (scan["exceeded"] == (scan["direction"] != "none")).all()
+
+
+def test_response_badge_and_diagnostic_note():
+    scan = run_breakout_scan(
+        _price_frame(), lambda: RandomWalk("QQQ_close"), target_col="QQQ_close",
+        model_version="vtest", initial_train=120, eval_size=40)
+    resp = build_breakouts_response(scan, window=20)
+    assert resp["expected_rate"] == EXPECTED_RATE
+    assert resp["badge"] in ("green", "amber")
+    assert 0.0 <= resp["rate"] <= 1.0
+    assert "not a trade signal" in resp["note"].lower()
+    # events carry the audit fields
+    for ev in resp["events"]:
+        assert ev["direction"] in ("up", "down")
+        assert "ts" in ev and "magnitude" in ev
+
+
+def test_response_empty_scan_is_safe():
+    resp = build_breakouts_response(pd.DataFrame(), window=20)
+    assert resp["rate"] is None
+    assert resp["badge"] == "amber"
+    assert resp["events"] == []
+
+
+# --- /breakouts serve wiring (P5b): scorecard from report_json['breakouts'] ---
+from fastapi.testclient import TestClient  # noqa: E402
+
+from test_registry_serve import _sqlite_register, _sqlite_registry  # noqa: E402
+from pythia.serve.app import create_app  # noqa: E402
+
+
+def _client_with(report_json: dict) -> TestClient:
+    reg = _sqlite_registry()
+    _sqlite_register(
+        reg, model_name="tft_lite_daily_qqq", model_version="v1",
+        dataset_hash="a" * 64, report_json=report_json,
+        artifact_uri="local://x", git_sha="feedface")
+    return TestClient(create_app(registry=reg))
+
+
+def test_breakouts_route_serves_block_when_present():
+    block = {"expected_rate": 0.20, "window": 20, "rate": 0.18, "n": 20,
+             "badge": "green", "verdict": "band calibrated", "events": []}
+    client = _client_with({"tft_lite_daily_qqq": {"coverage_80": 0.79},
+                           "breakouts": block})
+    data = client.get("/breakouts").json()
+    assert data["breakouts"] == block
+    assert data["model_version"] == "v1"
+
+
+def test_breakouts_route_null_when_absent():
+    client = _client_with({"tft_lite_daily_qqq": {"coverage_80": 0.79}})
+    data = client.get("/breakouts").json()
+    assert data["breakouts"] is None  # graceful-empty; panel hides scorecard
