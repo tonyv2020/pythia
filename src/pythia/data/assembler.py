@@ -126,12 +126,18 @@ def daily_bars_from_intraday(intraday: pd.DataFrame) -> pd.DataFrame:
     return daily.reset_index(drop=True)
 
 
-def _pivot_wide(daily: pd.DataFrame) -> pd.DataFrame:
+def _pivot_wide(
+    daily: pd.DataFrame, hl_symbols: "set[str] | None" = None
+) -> pd.DataFrame:
     """Long → wide: index = date, cols = ``{symbol}_close`` / ``{symbol}_volume``.
 
-    Only ``close`` and ``volume`` propagate to the wide frame — that's enough
-    for P0 baselines and metrics. Full OHLC stays available as the long
-    ``daily`` DataFrame if a downstream model wants it.
+    ``close`` and ``volume`` propagate for every symbol — enough for the price
+    baselines + metrics. ``high`` / ``low`` are added ONLY for symbols in
+    ``hl_symbols`` (P5a multi-target: the realized-range target = log(high/low)
+    needs them). Kept opt-in + target-only because the model adapter treats a
+    symbol's high/low as TARGET columns (excluded from features); adding them
+    for every symbol would instead balloon the covariate set and change the
+    price model. Default ``None`` → close+volume only (existing behaviour).
     """
     if daily.empty:
         return pd.DataFrame()
@@ -147,6 +153,14 @@ def _pivot_wide(daily: pd.DataFrame) -> pd.DataFrame:
         .sort_index()
     )
     wide = close.join(volume, how="outer")
+
+    if hl_symbols:
+        for measure in ("high", "low"):
+            piv = daily[daily["symbol"].isin(hl_symbols)].pivot(
+                index="date", columns="symbol", values=measure
+            ).add_suffix(f"_{measure}").sort_index()
+            wide = wide.join(piv, how="outer")
+
     # Deterministic column ordering (measure grouped by symbol asc).
     return wide[sorted(wide.columns)]
 
@@ -161,6 +175,7 @@ def assemble_dataset(
     historical_adjust: bool = True,
     historical_start: date | None = None,
     historical_provider_fn: ProviderFn | None = None,
+    hl_symbols: Iterable[str] | None = None,
 ) -> AssemblyResult:
     """Pull the board + rate/vol proxies and return daily bars pivoted wide.
 
@@ -214,7 +229,7 @@ def assemble_dataset(
     missing = tuple(s for s in wanted if s not in present_combined)
     included = tuple(s for s in wanted if s in present_combined)
 
-    wide = _pivot_wide(daily_long)
+    wide = _pivot_wide(daily_long, set(hl_symbols) if hl_symbols else None)
 
     # Calendar features (time-agnostic; keyed on date) go on the wide frame.
     wide = add_calendar_features(wide)
