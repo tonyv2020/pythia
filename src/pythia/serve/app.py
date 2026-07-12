@@ -89,15 +89,12 @@ def create_app(registry: ModelRegistry | None = None) -> FastAPI:
         rec = _reg().latest(model)
         if rec is None:
             raise HTTPException(status_code=404, detail=f"no model registered under {model!r}")
-        weights = rec.report_json.get("variable_importance")
-        if weights is None:
-            raise HTTPException(
-                status_code=404,
-                detail=(
-                    "variable-importance not yet exported by trainer for this run — "
-                    "P1 phase 2c/d task"
-                ),
-            )
+        # helen D17: return gracefully-empty (200 with empty array) instead of
+        # 404 when the trainer has not yet exported VSN weights — the panel
+        # already hides the drivers strip on empty; 404 was cosmetic noise that
+        # helped mask the raptor-white-screen incident. Real drivers get filled
+        # once the TFT trainer starts writing report_json["variable_importance"].
+        weights = rec.report_json.get("variable_importance") or []
         return {
             "model_name": rec.model_name,
             "model_version": rec.model_version,

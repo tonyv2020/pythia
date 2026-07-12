@@ -132,7 +132,9 @@ def test_serve_health() -> None:
     assert r.json()["status"] == "ok"
 
 
-def test_variable_importance_404_when_absent() -> None:
+def test_variable_importance_empty_when_absent() -> None:
+    # helen D17: gracefully empty (200 + empty array) instead of 404 when the
+    # trainer has not yet exported VSN weights. Panel already handles empty.
     reg = _sqlite_registry()
     _sqlite_register(reg,
         model_name="tft_lite_daily_qqq", model_version="v1", dataset_hash="e" * 64,
@@ -140,5 +142,24 @@ def test_variable_importance_404_when_absent() -> None:
         artifact_uri="local://z", git_sha="feedface")
     client = TestClient(create_app(registry=reg))
     r = client.get("/variable-importance")
-    assert r.status_code == 404
-    assert "P1 phase 2c/d" in r.json()["detail"]
+    assert r.status_code == 200
+    data = r.json()
+    assert data["variable_importance"] == []
+    assert data["model_name"] == "tft_lite_daily_qqq"
+
+
+def test_variable_importance_returns_weights_when_present() -> None:
+    reg = _sqlite_registry()
+    _sqlite_register(reg,
+        model_name="tft_lite_daily_qqq", model_version="v2", dataset_hash="f" * 64,
+        report_json={"tft_lite_daily_qqq": {"coverage_80": 0.78},
+                     "variable_importance": [
+                         {"feature": "SPY_close_lag1", "weight": 0.42},
+                         {"feature": "QQQ_volume_lag1", "weight": 0.18}]},
+        artifact_uri="local://z", git_sha="deadbeef")
+    client = TestClient(create_app(registry=reg))
+    r = client.get("/variable-importance")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["variable_importance"][0]["feature"] == "SPY_close_lag1"
+    assert data["variable_importance"][0]["weight"] == 0.42
