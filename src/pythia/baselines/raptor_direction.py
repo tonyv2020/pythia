@@ -51,11 +51,20 @@ class RaptorDirection(Model):
         r = _forward_log_returns(train[self.target_col], self.horizon)
         tilt = self.tilt.reindex(train.index)
         df = pd.concat([r.rename("r"), tilt.rename("tilt")], axis=1).dropna()
+
+        # Graceful fallback (parallel to RaptorPMove PR #13): if not enough
+        # aligned train rows, degrade to a flat zero-drift RW-style forecast
+        # (mean=0 via beta=0, sigma = train forward-return std). Direction-sparse
+        # early windows carry no usable directional signal; the harness must
+        # not crash, and no baseline should silently miss a split.
         if len(df) < self.min_train_rows:
-            raise RuntimeError(
-                f"RaptorDirection needs >= {self.min_train_rows} aligned train "
-                f"rows with a tilt, got {len(df)}"
-            )
+            # Sigma from the target returns in the raw train window.
+            r_only = r.dropna().to_numpy()
+            s = float(np.std(r_only, ddof=1)) if len(r_only) > 1 else 0.0
+            self._beta = 0.0
+            self._sigma = max(s, self.sigma_floor)
+            return
+
         x = df["tilt"].to_numpy()
         y = df["r"].to_numpy()
         denom = float(np.dot(x, x))
