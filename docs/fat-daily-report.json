@@ -1,0 +1,48 @@
+{
+  "last_return": {
+    "coverage_80": 0.7314071696094168,
+    "crps": 0.011062990824596856,
+    "hit_rate": 0.5195291599785982,
+    "mae": 0.01504212363008249,
+    "mae_skill_vs_rw": -0.4227110295042429,
+    "model_name": "last_return",
+    "n_eval_obs": 1869,
+    "n_splits": 89,
+    "pinball_10": 0.003973628194777162,
+    "pinball_50": 0.007521061815041245,
+    "pinball_90": 0.003506595876420787,
+    "warnings": [
+      "P10-P90 coverage is 0.731 \u2014 MISCALIBRATED (target 0.80 \u00b1 0.05); do not trade against this forecast"
+    ]
+  },
+  "random_walk": {
+    "coverage_80": 0.8635634028892456,
+    "crps": 0.007957843202582344,
+    "hit_rate": 0.0,
+    "mae": 0.010572859363664356,
+    "mae_skill_vs_rw": null,
+    "model_name": "random_walk",
+    "n_eval_obs": 1869,
+    "n_splits": 89,
+    "pinball_10": 0.0029357737634435723,
+    "pinball_50": 0.005286429681832178,
+    "pinball_90": 0.0025562903586537756,
+    "warnings": [
+      "P10-P90 coverage is 0.864 \u2014 MISCALIBRATED (target 0.80 \u00b1 0.05); do not trade against this forecast"
+    ]
+  },
+  "tft_lite": {
+    "coverage_80": 0.7811663991439273,
+    "crps": 0.008205015221164524,
+    "hit_rate": 0.5243445692883895,
+    "mae": 0.011061256068047082,
+    "mae_skill_vs_rw": -0.04619343619202909,
+    "model_name": "tft_lite",
+    "n_eval_obs": 1869,
+    "n_splits": 89,
+    "pinball_10": 0.0030821982780123323,
+    "pinball_50": 0.005530628034023541,
+    "pinball_90": 0.0024836033221752683,
+    "warnings": []
+  }
+}

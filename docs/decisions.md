@@ -134,3 +134,55 @@ on fat data (P2 hard-req satisfied). The fat-dataset VERDICT is still PENDING �
 - **eval_mask design APPROVED**: score only within-session bars; baselines `.predict()` on the full
   window, mask only the SCORING — leak-safe (past-only) + apples-to-apples with baselines.
 PR #7 merged; agent-2 proceeds to the full intraday model.
+
+## D13 — P3 p_move baseline design (2026-07-11)
+agent-2 found the real persisted signals in raptor-intel pg: `staging.qqq_pmove` (324 days,
+2023→2026; p_move = scalar move-MAGNITUDE probability, avg 0.157) + `staging.qqq_direction`
+(p_up/p_dn). Methodology calls (helen owns eval):
+1. **p_move → CALIBRATED DISPERSION baseline** — approve agent-2's mapping. p_move is a magnitude
+   probability, NOT a (mean,sigma) return forecast, so map it as mean=0 + sigma = c·g(p_move),
+   with scale c fit on each TRAIN window to ~0.80 train coverage → a legit "raptor-implied-
+   dispersion" baseline scored on the same CRPS/coverage/pinball as the TFT (apples-to-apples).
+   DIRECTION handled separately via `qqq_direction` (p_up/p_dn → mean sign) as its own baseline.
+   Optional (nice-to-have, not required): also report p_move's native move-magnitude skill as
+   Brier/AUC. This respects what each signal IS.
+2. **Granularity → 10-MIN intraday BARS** (matches p_move's native ~10-min grid + the 3-min feed).
+   Horizon stays ~30 min = 3 bars (refines D12: the 30-min *horizon* holds; the *bar size* is
+   10-min, not 30). Native apples-to-apples vs p_move.
+3. **Data asymmetry ACCEPTED (honest):** the intraday-TFT-vs-p_move comparison is limited to the
+   ~1-month tick-feed overlap (raw ticks only since 2026-06-05); report n-on-overlap explicitly.
+   No free intraday backfill (unlike daily). Intraday verdict stays thin until tick history
+   accrues — stated openly, not hidden.
+Separately: the FAT DAILY VERDICT is still pending — agent-2 to RUN scripts/nightly_retrain
+(defaults→backfill) NOW; it is independent of the P3 work.
+
+## D14 — Fat-dataset DAILY VERDICT: robust null, well-calibrated (2026-07-12)
+Daily walk-forward re-run on the D8-backfilled **n=1869 / 89-split** set (8 years, 2018→2026;
+PR #8, 80 epochs). helen-verified from `docs/fat-daily-report.json`:
+- **tft_lite**: cov80 **0.781** (CALIBRATED, best of the three), CRPS 0.00821, MAE-skill vs RW
+  **−0.046**, hit 0.524.
+- **random_walk**: cov80 0.864 (mild over-cover), CRPS 0.00796.
+- **last_return**: cov80 0.731 (under-cover), CRPS 0.01106.
+**VERDICT: robust NULL.** On 8 years the TFT is well-calibrated (better than both baselines) but
+does NOT beat random-walk on the proper score (CRPS ~3% behind, MAE ~5% behind; 52.4% hit-rate is
+within noise of the 50% martingale prior). MORE DATA HELPED (MAE-skill −0.20 on thin n=214 →
+−0.046 on n=1869; CRPS gap narrowed) but did not create an edge. This is the honest, expected
+result for daily QQQ returns — a scientifically valid null (D2). The panel shows the calibrated
+cone + an honest "no edge vs random-walk" scorecard. Any residual signal is more likely to
+surface in the intraday model (P3) vs p_move — the next test.
+
+## D15 — Intraday baseline verdict + TFT greenlight (2026-07-12)
+agent-2's intraday walk-forward (PR #9; 10-min bars, 30-min horizon, n=7242 on the ~1-month tick
+overlap; horizon-purge h-1 embargo + eval_mask within-session — tests present + green). BASELINE
+verdict (no TFT yet), helen-verified:
+- random_walk     : cov80 0.956 | CRPS 0.001673
+- last_return     : cov80 0.933 | CRPS 0.003099 | skill −0.93
+- raptor_p_move   : cov80 0.871 | CRPS 0.001681 | skill 0.0  (BEST-calibrated — carries real
+  dispersion, tightens coverage vs RW's over-dispersed 0.956, but MATCHES RW on CRPS)
+- raptor_direction: cov80 0.958 | CRPS 0.001573 | skill −0.006  (≈ RW; no 30-min directional edge)
+Read: p_move has real dispersion info (best cov80) but no CRPS edge; no directional edge at 30-min;
+all mildly over-dispersed → the TFT's job is a TIGHTER conditional sigma than these.
+Decisions: (a) floor-0.02 sigma fix APPROVED — disclose it in the methodology (not a hidden fudge).
+(b) GREENLIGHT the intraday TFT-lite (deep sample, honest+solid baselines, same scored path). Train
+on the 2080 Ti for the reported verdict (CPU ok for a smoke test only). The intraday-TFT-vs-p_move
+verdict is the next Tony one-liner.
