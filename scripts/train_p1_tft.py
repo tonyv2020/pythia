@@ -29,6 +29,7 @@ import pandas as pd
 from pythia.backtest import expanding_walk_forward, run_backtest
 from pythia.baselines import LastReturn, RandomWalk
 from pythia.models import TFTLiteModel
+from pythia.models.conformal import ConformalScaledModel
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -74,12 +75,19 @@ def main(argv: list[str] | None = None) -> int:
         model_factories={
             "random_walk": lambda: RandomWalk(args.target),
             "last_return": lambda: LastReturn(args.target),
-            "tft_lite":    lambda: TFTLiteModel(
+            # helen D18: wrap TFT in the conformal scaler so cov80 lands on
+            # target by construction (not seed-lottery). Base model is unchanged
+            # so mean / MAE-skill / null-vs-RW verdict are identical; only the
+            # predictive sigma gets right-sized.
+            "tft_lite":    lambda: ConformalScaledModel(
+                base=TFTLiteModel(
+                    target_col=args.target,
+                    encoder_length=args.encoder_length,
+                    hidden_size=args.hidden_size,
+                    max_epochs=args.max_epochs,
+                    batch_size=args.batch_size,
+                ),
                 target_col=args.target,
-                encoder_length=args.encoder_length,
-                hidden_size=args.hidden_size,
-                max_epochs=args.max_epochs,
-                batch_size=args.batch_size,
             ),
         },
     )
