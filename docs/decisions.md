@@ -271,3 +271,17 @@ than a target-nudged 0.80, and it surfaces a REAL property of the data (non-stat
 Option 2 (drift-compensation to 0.80) is a documented config-toggle if exact-0.80 bands are wanted
 later, but not required. I'm relaxing my own [0.75,0.85] gate to accept 0.737-disclosed given it is
 seed-stable + transparent — the honesty of the disclosure is what matters, not the exact number.
+
+## D21 — P2 accepted: panel serves the honest 0.737 daily model (2026-07-12, helen verified live)
+Verified `pythia-serve` `/latest` serves `tft_lite_daily_qqq` **v2026-07-12** (trained 10:42Z,
+dataset_hash 7a160165…): coverage_80 **0.7373**, mae_skill_vs_rw **−0.0625**, n_eval **1869 / 89
+splits** — the D20 conformal model, NOT any pre-conformal miscalibrated row. Screenshot-verified the
+live panel at raptor.tonyvigna.com: dashboard loads with the API up (hard gate — error boundary from
+PR #36 also proven 06:56Z); the forecast panel reads **"MISCALIBRATED (0.737, target 0.80 ± 0.05)"**
+with an Honest scorecard (cov 73.7%, MAE-skill −6.3% "worse than RW", hit 53.2%, n=1869/89,
+CRPS 0.0084|0.0080 TFT|RW) and notes "systematic ~6pp train→eval drift on daily QQQ" + "Do not size
+trades from these forecasts." **No "well-calibrated 0.80" claim anywhere.** Drivers strip degrades
+gracefully ("Drivers not yet exported by the trainer — VSN weights land in P1 phase 2c/d"). **P2 =
+DONE.** **Why:** every D20 acceptance condition is live and honest; the panel tells the true null-result
+story. Next: P4 (daily + intraday conformal cones overlaid on one forward axis + event markers +
+backtest replay) — the panel Tony validates.
