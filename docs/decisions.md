@@ -381,3 +381,15 @@ no alpha copy. **Why:** mirrors the price precedent exactly — serve the best-C
 calibrated (or honestly disclosed) uncertainty; the range null is itself an honest result. P5c
 (attention viz) proceeds in parallel per D24 (independent, no external contract — no need to hold it
 for P4-polish, which is now verified anyway).
+
+## D27 — P5c attention strip: live + honest graceful degradation verified (2026-07-12, helen)
+PRs #25 (pythia: capture+serve TFT attention_weights) + #42 (raptor: AttentionStrip on the P2 forecast
+panel) merged + Recreate-deployed (base=/ holds, bundle index-DHoDnuWA.js). Verified live on the P2
+"Pythia daily forecast" panel: the strip renders UNDER the drivers with the honest note **"Attention
+not available for this model version (trainer pre-P5c)"** — the correct graceful state per D24 Q1
+(the served model predates the attention capture). Placement correct: P2 panel ONLY, not the overlay.
+**P5c code = DONE** (UI + honest degradation + capture/serve path shipped). The REAL attention bars
+auto-populate on the next NIGHTLY RETRAIN (which registers a model carrying attention_weights).
+**FOLLOW-UP:** after that retrain, re-verify the strip shows real per-bar weights + the honest
+diffuse-attention note when ~uniform — that validates the PR #25 capture end-to-end (unverified until a
+model carries the array; if it still says "not available" post-retrain, the capture is broken).
