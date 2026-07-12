@@ -169,24 +169,55 @@ def run_breakout_scan(
 def build_breakouts_response(
     scan: pd.DataFrame, window: int = 20, recent: int = 30
 ) -> dict:
-    """The /breakouts serve block: the rolling breach rate vs the 20% expected
-    + the most recent breakout events + an honest calibration verdict.
+    """The /breakouts serve block: the rolling (recent) breach rate AND the
+    lifetime breach rate vs the 20% expected + the most recent breakout events
+    + an honest calibration verdict.
 
-    ``badge``: green when the rolling rate sits near expected (0.10-0.30 band),
-    amber otherwise (bands systematically too tight → over-rate, or too wide →
-    under-rate). Disclosure, not a trade signal (matches the D25 range badge).
+    Two rates, because one alone lies:
+      * ``rate`` — the rolling last-``window`` breach rate = CURRENT calibration.
+      * ``lifetime_rate`` — the breach fraction over the WHOLE scan = STRUCTURAL
+        calibration. A band can be lifetime-calibrated (~20%) yet breach 60% of
+        the last 20 bars in a vol spike; reporting only the rolling rate would
+        read as "band broken" when it is really a recent DRIFT.
+
+    ``badge`` reflects the rolling rate (green in 0.10-0.30 = currently
+    well-sized, amber otherwise = attention). The ``verdict`` names BOTH so a
+    recent-drift amber is not mistaken for a structurally-broken band.
+    Disclosure, not a trade signal (matches the D25 range badge).
     """
+    def _band(x: float) -> bool:
+        return 0.10 <= x <= 0.30 if x == x else False  # x==x → not NaN
+
     rate = breakout_rate(scan, window=window)
     r = rate.breakout_rate
-    in_band = 0.10 <= r <= 0.30 if r == r else False  # r==r → not NaN
+    in_band = _band(r)
+    # Lifetime breach fraction over every scored bar (structural calibration).
+    lifetime = float(scan["exceeded"].mean()) if not scan.empty else float("nan")
+    life_ok = _band(lifetime)
+
+    def _recent_phrase(x: float) -> str:
+        if x > 0.30:
+            return f"recent breach {x:.0%} >> {EXPECTED_RATE:.0%} — bands currently too TIGHT"
+        if x < 0.10:
+            return f"recent breach {x:.0%} << {EXPECTED_RATE:.0%} — bands currently too WIDE"
+        return f"recent breach {x:.0%} ~ {EXPECTED_RATE:.0%}"
+
     if r != r:
         verdict = "no scan rows yet"
-    elif r > 0.30:
-        verdict = f"breach rate {r:.0%} >> {EXPECTED_RATE:.0%} expected — bands too TIGHT (under-dispersed)."
-    elif r < 0.10:
-        verdict = f"breach rate {r:.0%} << {EXPECTED_RATE:.0%} expected — bands too WIDE (over-dispersed)."
+    elif life_ok and not in_band:
+        # The honest case the single-rate verdict got wrong: structurally sound,
+        # recently drifting.
+        verdict = (f"{_recent_phrase(r)}; but LIFETIME breach {lifetime:.0%} "
+                   f"~ {EXPECTED_RATE:.0%} over n={len(scan)} — band is "
+                   f"structurally calibrated, this is a RECENT vol-regime drift.")
+    elif not life_ok:
+        struct = "too TIGHT" if lifetime > 0.30 else "too WIDE"
+        verdict = (f"lifetime breach {lifetime:.0%} vs {EXPECTED_RATE:.0%} "
+                   f"expected over n={len(scan)} — band structurally {struct}. "
+                   f"({_recent_phrase(r)}.)")
     else:
-        verdict = f"breach rate {r:.0%} ~ {EXPECTED_RATE:.0%} expected — band calibrated."
+        verdict = (f"{_recent_phrase(r)}; lifetime breach {lifetime:.0%} "
+                   f"~ {EXPECTED_RATE:.0%} — band calibrated.")
 
     events: list[dict] = []
     if not scan.empty:
@@ -205,14 +236,16 @@ def build_breakouts_response(
     return {
         "expected_rate": EXPECTED_RATE,
         "window": window,
-        "rate": None if r != r else float(r),
+        "rate": None if r != r else float(r),               # rolling/recent
+        "lifetime_rate": None if lifetime != lifetime else lifetime,  # full-period
+        "lifetime_calibrated": life_ok,
         "n": rate.n,
         "n_scan": int(len(scan)),
-        "badge": "green" if in_band else "amber",
+        "badge": "green" if in_band else "amber",           # reflects recent
         "verdict": verdict,
         "events": events,
-        "note": ("rolling P10-P90 breach rate vs the ~20% expected under "
-                 "calibration. A diagnostic of forecast honesty (band too "
-                 "tight/wide), NOT a trade signal — do not size trades from "
-                 "breakout flags."),
+        "note": ("P10-P90 breach rate vs the ~20% expected under calibration — "
+                 "rolling (recent) AND lifetime (structural). A diagnostic of "
+                 "forecast honesty (band too tight/wide), NOT a trade signal — "
+                 "do not size trades from breakout flags."),
     }

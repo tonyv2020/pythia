@@ -109,8 +109,33 @@ def test_response_badge_and_diagnostic_note():
 def test_response_empty_scan_is_safe():
     resp = build_breakouts_response(pd.DataFrame(), window=20)
     assert resp["rate"] is None
+    assert resp["lifetime_rate"] is None
     assert resp["badge"] == "amber"
     assert resp["events"] == []
+
+
+def test_response_reports_lifetime_and_recent_separately():
+    # A structurally-calibrated band (~20% lifetime) that breaches heavily in
+    # the RECENT window must read as recent-drift, NOT structurally broken.
+    n = 200
+    ts = pd.date_range("2024-01-01", periods=n, freq="B")
+    exceeded = np.zeros(n, dtype=bool)
+    exceeded[:36] = True          # ~20% lifetime breach spread in the early part
+    exceeded[-18:] = True         # last 18 of 20 breach → recent rate ~0.9
+    scan = pd.DataFrame({
+        "model_version": "v", "symbol": "QQQ", "ts": ts, "horizon": 1,
+        "direction": np.where(exceeded, "up", "none"),
+        "realized": 0.0, "p10": -0.01, "p90": 0.01,
+        "exceeded": exceeded, "magnitude": 0.0, "oos": True,
+    })
+    resp = build_breakouts_response(scan, window=20)
+    assert resp["rate"] > 0.30              # recent window is hot
+    assert 0.10 <= resp["lifetime_rate"] <= 0.30  # lifetime is calibrated
+    assert resp["lifetime_calibrated"] is True
+    # verdict must name BOTH so recent-drift isn't mistaken for a broken band
+    v = resp["verdict"].lower()
+    assert "lifetime" in v and "recent" in v
+    assert "structurally calibrated" in v or "recent vol-regime drift" in v
 
 
 # --- /breakouts serve wiring (P5b): scorecard from report_json['breakouts'] ---
