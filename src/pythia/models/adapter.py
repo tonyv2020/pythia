@@ -97,6 +97,13 @@ class TFTLiteModel:
         if f"{sym}_low" in train.columns:
             target_cols.add(f"{sym}_low")
         from ..features.lag import default_policy_for
+        # Drop columns that are entirely NaN in the train window before we
+        # build the policy — otherwise ffill has nothing to fill and the join
+        # kills every row. Common on intraday P3 where the raptor tick feed
+        # only intermittently covers non-QQQ board symbols.
+        all_nan = [c for c in train.columns if train[c].isna().all()]
+        if all_nan:
+            train = train.drop(columns=all_nan)
         policy = default_policy_for(train.columns, target_cols=target_cols)
         # Forward-fill observed covariates BEFORE lag to survive raptor's
         # intermittent ingestion. ffill uses only past values (no look-ahead)
