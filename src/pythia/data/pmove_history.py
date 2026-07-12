@@ -48,6 +48,7 @@ def load_pmove_series(rows_fn: RowsFn | None = None, dsn: str | None = None) -> 
     rows = list(rows_fn(_PMOVE_SQL))
     if not rows:
         return pd.Series(dtype="float64")
+    rows = [r for r in rows if r[2] is not None]
     idx = [_bar_ts(str(d), str(t)) for d, t, _ in rows]
     vals = [float(p) for _, _, p in rows]
     s = pd.Series(vals, index=pd.DatetimeIndex(idx), name="p_move")
@@ -60,6 +61,7 @@ def load_direction_tilt(rows_fn: RowsFn | None = None, dsn: str | None = None) -
     rows = list(rows_fn(_DIRECTION_SQL))
     if not rows:
         return pd.Series(dtype="float64")
+    rows = [r for r in rows if r[2] is not None and r[3] is not None]
     idx = [_bar_ts(str(d), str(t)) for d, t, _, _ in rows]
     vals = [float(pu) - float(pd_) for _, _, pu, pd_ in rows]
     s = pd.Series(vals, index=pd.DatetimeIndex(idx), name="tilt")
