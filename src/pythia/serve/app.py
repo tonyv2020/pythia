@@ -15,6 +15,47 @@ CALIBRATION_LOWER = 0.75
 CALIBRATION_UPPER = 0.85
 
 
+def _build_notes(tft: dict, rw: dict) -> list[str]:
+    """Compose model-note bullets from the served rows.
+
+    Everything is DERIVED from the report_json — no hardcoded n/coverage/skill
+    strings — so a panel reload after a new nightly retrain shows the new
+    numbers automatically. helen D17.
+    """
+    notes: list[str] = []
+    n_obs = int(tft.get("n_eval_obs") or 0)
+    n_splits = int(tft.get("n_splits") or 0)
+    cov = tft.get("coverage_80")
+    skill = tft.get("mae_skill_vs_rw")
+
+    if cov is not None:
+        if CALIBRATION_LOWER <= float(cov) <= CALIBRATION_UPPER:
+            notes.append(
+                f"P10-P90 coverage {float(cov):.3f} is CALIBRATED (in the "
+                f"{CALIBRATION_LOWER}-{CALIBRATION_UPPER} gate)."
+            )
+        else:
+            notes.append(
+                f"P10-P90 coverage {float(cov):.3f} is MISCALIBRATED "
+                f"(gate {CALIBRATION_LOWER}-{CALIBRATION_UPPER}); tail width is off."
+            )
+
+    if skill is not None:
+        s = float(skill)
+        if s > 0.02:
+            notes.append(f"MAE-skill vs random-walk: +{100*s:.1f}% (better than RW).")
+        elif abs(s) <= 0.05:
+            notes.append(f"MAE-skill vs random-walk: {100*s:+.1f}% (NULL SKILL — indistinguishable from RW).")
+        else:
+            notes.append(f"MAE-skill vs random-walk: {100*s:+.1f}% (worse than RW).")
+
+    if n_obs or n_splits:
+        notes.append(f"Sample: n={n_obs} / {n_splits} walk-forward splits.")
+
+    notes.append("Do not size trades from these forecasts.")
+    return notes
+
+
 def create_app(registry: ModelRegistry | None = None) -> FastAPI:
     app = FastAPI(
         title="pythia",
@@ -57,8 +98,11 @@ def create_app(registry: ModelRegistry | None = None) -> FastAPI:
         rec = _reg().latest(model)
         if rec is None:
             raise HTTPException(status_code=404, detail=f"no model registered under {model!r}")
-        rep = rec.report_json.get(model) or next(iter(rec.report_json.values()), {})
-        cov = float(rep.get("coverage_80", float("nan")))
+        # helen D17: pull the tft_lite row + the random_walk row from the report
+        # so notes reflect the ACTUAL served model, not a hardcoded D9-era string.
+        tft = rec.report_json.get("tft_lite") or rec.report_json.get(model) or {}
+        rw = rec.report_json.get("random_walk") or {}
+        cov = float(tft.get("coverage_80", float("nan")))
         calibrated = CALIBRATION_LOWER <= cov <= CALIBRATION_UPPER
         response.headers["X-Pythia-Calibrated"] = "true" if calibrated else "false"
         return {
@@ -71,11 +115,7 @@ def create_app(registry: ModelRegistry | None = None) -> FastAPI:
             "report": rec.report_json,
             "calibrated": calibrated,
             "calibration_band": [CALIBRATION_LOWER, CALIBRATION_UPPER],
-            "notes": [
-                "P1 verdict on daily QQQ: TFT-lite CALIBRATED but NULL SKILL vs random-walk.",
-                "Data-limited (n=214 walk-forward eval obs); backfill (D8) firms this up.",
-                "Do not size trades from these forecasts.",
-            ],
+            "notes": _build_notes(tft, rw),
         }
 
     @app.get("/variable-importance")
