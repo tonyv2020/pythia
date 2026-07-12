@@ -109,12 +109,20 @@ class TFTLite(nn.Module):
             quantile predictions per target head: list of ``n_targets``
             tensors, each shape (B, K); AND variable-selection weights of
             shape (B, T, F) for interpretability.
+
+        Also stashes the temporal attention weights on ``self._last_attn_w``
+        (B, T) as a side-effect so downstream code can surface P5c
+        attention-over-time viz without a signature change. The tensor is
+        detached from the graph and lives on the same device as the input.
         """
         x_weighted, vsn_weights = self.vsn(x)
         h, _ = self.encoder(x_weighted)                 # (B, T, H)
         # Attention pool: query = last step, keys = all steps.
         q = h[:, -1:, :]                                # (B, 1, H)
         pooled, attn_w = self.attn(q, h, h)             # (B, 1, H), (B, 1, T)
+        # attn_w shape (B, 1, T) — squeeze the query axis; detach so
+        # readers don't hold a graph reference across the eval loop.
+        self._last_attn_w = attn_w.detach().squeeze(1)  # (B, T)
         z = self.norm(pooled.squeeze(1) + h[:, -1, :])  # residual + LN
         quantile_preds = [head(z) for head in self.heads]
         return quantile_preds, vsn_weights

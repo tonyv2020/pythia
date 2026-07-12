@@ -128,6 +128,41 @@ def create_app(registry: ModelRegistry | None = None) -> FastAPI:
             "notes": _build_notes(tft, rw),
         }
 
+    @app.get("/attention")
+    def attention(
+        model: str = Query(DEFAULT_MODEL_NAME, min_length=1, max_length=100),
+    ) -> dict:
+        """P5c: temporal attention weights over the encoder window.
+
+        Returns the length-``encoder_length`` softmax weight the TFT put on
+        each past bar for its LAST forecast in the walk-forward. Empty list
+        if the trainer hasn't emitted `attention_weights` (e.g. a legacy
+        registered model, or a non-TFT model like random_walk). The panel
+        shows "attention not available for this model version" on empty.
+        """
+        rec = _reg().latest(model)
+        if rec is None:
+            raise HTTPException(status_code=404, detail=f"no model registered under {model!r}")
+        # Report shape: {"tft_lite": {..., "attention_weights": [...]}, ...}
+        tft_report = rec.report_json.get("tft_lite") or rec.report_json.get(model) or {}
+        weights = tft_report.get("attention_weights") or []
+        # Simple honesty flag: uniform ~1/n means the model didn't lean on
+        # any past bar; the panel surfaces this as "attention is diffuse".
+        diffuse = False
+        if weights:
+            n = len(weights)
+            expected_uniform = 1.0 / n
+            max_dev = max(abs(w - expected_uniform) for w in weights)
+            diffuse = max_dev < (0.5 * expected_uniform)
+        return {
+            "model_name": rec.model_name,
+            "model_version": rec.model_version,
+            "trained_at": rec.trained_at.isoformat(),
+            "attention_weights": weights,
+            "encoder_length": len(weights),
+            "diffuse": diffuse,
+        }
+
     @app.get("/variable-importance")
     def variable_importance(
         model: str = Query(DEFAULT_MODEL_NAME, min_length=1, max_length=100),
