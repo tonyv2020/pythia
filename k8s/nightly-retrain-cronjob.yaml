@@ -37,10 +37,10 @@ spec:
               env:
                 - name: PYTHIA_DB_DSN
                   valueFrom:
-                    secretKeyRef: { name: pythia-db, key: dsn }
+                    secretKeyRef: { name: pythia-db, key: src_dsn }
                 - name: PYTHIA_REGISTRY_DSN
                   valueFrom:
-                    secretKeyRef: { name: pythia-db, key: dsn }
+                    secretKeyRef: { name: pythia-db, key: registry_dsn }
               resources:
                 requests:
                   cpu: 500m
