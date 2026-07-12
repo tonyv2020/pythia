@@ -308,3 +308,22 @@ basename mismatch**, and always test the **unauthenticated root** to isolate fro
 auth/backend. (3) Verify a "known-good" rollback on the **authenticated** path, not just the sign-in
 card. **Why logged:** P4's overlay must be re-attempted as a minimal delta on this base=/ build and
 must NOT reintroduce either regression; the chart-render (svgCount 0) fix is still pending.
+
+## D23 — P4 ACCEPTED: overlaid final panel live + rendering (2026-07-12, helen live-verified)
+The overlay panel renders on raptor.tonyvigna.com (base=/, app mounts, hard gate passed). Verified
+live: overlay container svgCount>=1; the chart draws BOTH cones on one forward axis (-30m → +5d) —
+daily cone green P90 / orange P10 / white-dashed P50 (~725.51, tooltip T+2d P10 706.97 / P90 744.54)
+spreading to +5d, intraday cone at the left edge — plus the daily P50 line, working hover tooltip,
+event marker (GOOG EPS), badges **daily AMBER cov80 73.7% / intraday CALIBRATED cov80 77.4%**, the
+boundary-consistency seam check, and both honest scorecard notes. Rebuilt with baked
+VITE_BASE_PATH=/ + VITE_API_URL= defaults and a Dockerfile fail-fast assert (PR #40) so the D22
+base-path regression cannot recur; deployed Recreate. **P4 = DONE.** This completes the Pythia
+deliverable: an honest, calibrated **null-result** forecasting panel for QQQ (returns ≈ random-walk at
+both daily and intraday horizons; the value is calibrated uncertainty, not alpha).
+**Two polish items flagged to Tony for his live-validation pass (NOT blockers):** (1) the intraday
+30-min cone is visually compressed beside the 5-day daily axis (inherent shared-linear-axis tradeoff;
+options: broken/dual axis, log-time, or a zoom toggle); (2) only 1 of 7 known events (GOOG EPS 07-15)
+falls within the daily +5d horizon — the rest (TSLA/AMZN+META/FOMC/AAPL/MSFT+NVDA/CPI, 07-22→08-05)
+are beyond the forecast window; consider extending the axis or a separate event ribbon.
+**Why:** per Tony's "run it through deployment, I'll validate the final pane," the functional bar is met
+and live; these are design calls he's best placed to direct. P5 extras remain optional.
