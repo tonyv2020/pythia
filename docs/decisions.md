@@ -285,3 +285,26 @@ gracefully ("Drivers not yet exported by the trainer — VSN weights land in P1 
 DONE.** **Why:** every D20 acceptance condition is live and honest; the panel tells the true null-result
 story. Next: P4 (daily + intraday conformal cones overlaid on one forward axis + event markers +
 backtest replay) — the panel Tony validates.
+
+## D22 — P4 first-cut incident + restore: frontend base-path regression (2026-07-12, helen)
+**What happened.** The P4 overlay first cut (raptor-intel PR #37) rendered its *scaffolding* (badges,
+boundary seam-check, honest notes) but the cone **chart drew no SVG** (svgCount 0) — a gate-fail I
+bounced back. The twin's chart fix (PR #38) then **white-screened all of raptor** (~13:33–~14:55Z,
+~1.5h): #root 0 children, no JS error, Dashboard chunk never requested.
+**Root cause (the real one).** NOT the chart. The #38 image rebuild **dropped the
+`VITE_BASE_PATH=/` build arg**, so the bundle was built with the pre-cutover base `/raptor-intel/`
+(router basename `/raptor-intel/`). Production serves raptor at the **domain root** and OIDC returns
+to `/#token`, so at path `/` the router matched nothing → never mounted. The first rollback (rebuild
+of PR #36 commit 909d4fc) **also** blanked — same dropped arg. Decisive test: the *unauthenticated*
+root `/` was blank too, and assets loaded from `/raptor-intel/assets/` while the page was at `/`.
+**Fix / restore.** Rebuilt with `--build-arg VITE_BASE_PATH=/ --build-arg VITE_API_URL=` → assets
+serve from `/assets/`, #root mounts (1 child, ~3MB DOM), authenticated Dashboard + P2 panel + all
+APIs 200. Added `strategy: Recreate` to `k8s/50-frontend.yaml` (PR #39) to kill the rollout-overlap
+2-pod chunk-hash race as well.
+**Standing lessons.** (1) **Bake `VITE_BASE_PATH=/` + `VITE_API_URL=` as Dockerfile/CI defaults** for
+raptor-intel-frontend so a rebuild can never silently drop them — one omission cost ~1.5h. (2) A blank
+SPA with **no JS error + entry chunk 200 + lazy chunk never requested** ⇒ suspect a **base-path/router
+basename mismatch**, and always test the **unauthenticated root** to isolate frontend-mount from
+auth/backend. (3) Verify a "known-good" rollback on the **authenticated** path, not just the sign-in
+card. **Why logged:** P4's overlay must be re-attempted as a minimal delta on this base=/ build and
+must NOT reintroduce either regression; the chart-render (svgCount 0) fix is still pending.
