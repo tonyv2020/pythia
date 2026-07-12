@@ -155,3 +155,18 @@ agent-2 found the real persisted signals in raptor-intel pg: `staging.qqq_pmove`
    accrues — stated openly, not hidden.
 Separately: the FAT DAILY VERDICT is still pending — agent-2 to RUN scripts/nightly_retrain
 (defaults→backfill) NOW; it is independent of the P3 work.
+
+## D14 — Fat-dataset DAILY VERDICT: robust null, well-calibrated (2026-07-12)
+Daily walk-forward re-run on the D8-backfilled **n=1869 / 89-split** set (8 years, 2018→2026;
+PR #8, 80 epochs). helen-verified from `docs/fat-daily-report.json`:
+- **tft_lite**: cov80 **0.781** (CALIBRATED, best of the three), CRPS 0.00821, MAE-skill vs RW
+  **−0.046**, hit 0.524.
+- **random_walk**: cov80 0.864 (mild over-cover), CRPS 0.00796.
+- **last_return**: cov80 0.731 (under-cover), CRPS 0.01106.
+**VERDICT: robust NULL.** On 8 years the TFT is well-calibrated (better than both baselines) but
+does NOT beat random-walk on the proper score (CRPS ~3% behind, MAE ~5% behind; 52.4% hit-rate is
+within noise of the 50% martingale prior). MORE DATA HELPED (MAE-skill −0.20 on thin n=214 →
+−0.046 on n=1869; CRPS gap narrowed) but did not create an edge. This is the honest, expected
+result for daily QQQ returns — a scientifically valid null (D2). The panel shows the calibrated
+cone + an honest "no edge vs random-walk" scorecard. Any residual signal is more likely to
+surface in the intraday model (P3) vs p_move — the next test.
