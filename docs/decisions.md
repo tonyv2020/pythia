@@ -327,3 +327,35 @@ falls within the daily +5d horizon — the rest (TSLA/AMZN+META/FOMC/AAPL/MSFT+N
 are beyond the forecast window; consider extending the axis or a separate event ribbon.
 **Why:** per Tony's "run it through deployment, I'll validate the final pane," the functional bar is met
 and live; these are design calls he's best placed to direct. P5 extras remain optional.
+
+## D24 — P4 polish calls + P5 kickoff (2026-07-12, helen; Tony delegated "do the things you recommend")
+Tony validated P4 and delegated both the polish calls and the P5 go-ahead to helen. Decisions:
+
+**P4 polish 1 — intraday cone compression → BROKEN/PIECEWISE forward axis.** Give the intraday
+segment (now→+30m) a fixed left zone (~1/3 width) at minute ticks and the daily segment (+1d→+5d)
+the right ~2/3 at day ticks, with a labeled seam ("end of session ┊ days →"). Preserves the
+one-axis seam narrative while making BOTH cones readable. Rejected: log-time (hard to read),
+zoom-toggle (hides the overlay's whole point). Implementation latitude: if a true broken axis is
+too fiddly in Recharts, two aligned sub-charts sharing the seam is an acceptable equivalent —
+outcome fixed (intraday readable + daily readable + seam preserved).
+
+**P4 polish 2 — events beyond +5d → separate 30-DAY EVENT RIBBON below the chart.** Render all 7
+known events as ticks/labels on a calendar ribbon decoupled from the forecast axis; in-window events
+(GOOG 07-15) also keep their on-chart marker. Do NOT extend the cone axis past +5d — the model
+doesn't forecast that far and empty cone would be misleading.
+
+**P5 question answers:**
+1. Attention viz scope → **P2 forecast panel only** (agree default; keep the overlay clean).
+2. Breakouts channel → **`pythia_breakouts` table + `/breakouts` endpoint + in-panel pill for v1;
+   external ping DEFERRED.** If built later, use a dedicated pythia-diagnostics GitHub-issue channel,
+   **NOT an Ariadne project** — Ariadne is the CPM/work-scheduling board; telemetry would pollute
+   ground truth.
+3. Range/vol target math → **realized-range (high−low) as % of price** (agree default; matches the P2
+   "Day range" vocabulary + interpretable). Model log(range). Parkinson vol noted as an optional
+   future rigor upgrade.
+4. Order → P5 is now **UNBLOCKED** (helen owns the P4 polish call). Sequence: **P4-polish (broken axis
+   + event ribbon) FIRST** (it reshapes the overlay chart), then **(a) multi-target → (c) attention →
+   (b) breakouts**. Each ships as its own PR + Recreate + local svgCount-verify + honesty guardrails
+   (calibrated bands, skill-vs-RW always reported, no alpha copy).
+**Why:** completes the panel Tony validated; each piece is honest-by-construction and independently
+shippable; the P4-polish-first ordering avoids chart-component churn against the multi-target toggle.
