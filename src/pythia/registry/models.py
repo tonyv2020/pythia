@@ -150,7 +150,7 @@ class ModelRegistry:
             INSERT INTO pythia_models
                 (model_name, model_version, dataset_hash, report_json, artifact_uri, git_sha)
             VALUES
-                (:name, :ver, :hash, :report, :uri, :sha)
+                (:name, :ver, :hash, CAST(:report AS jsonb), :uri, :sha)
             ON CONFLICT (model_name, model_version) DO UPDATE
                 SET dataset_hash = EXCLUDED.dataset_hash,
                     report_json  = EXCLUDED.report_json,
