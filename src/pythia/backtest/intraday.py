@@ -31,6 +31,7 @@ def run_intraday_backtest(
     rw_name: str = "random_walk",
     with_tft: bool = False,
     tft_kwargs: dict | None = None,
+    tft_conformal: bool = True,
 ) -> dict[str, Report]:
     """Run the intraday walk-forward. ``horizon`` bars ≈ the forecast horizon
     (3 × 10-min = 30 min). ``eval_size`` defaults to ~1 session of 10-min bars.
@@ -59,13 +60,23 @@ def run_intraday_backtest(
         )
     if with_tft:
         # Lazy import: torch only needed on the model path (keeps the baseline
-        # path torch-free). Horizon-consistent forward-h target subclass.
+        # path torch-free). Horizon-consistent forward-h target subclass, wrapped
+        # (default) in per-train-window conformal calibration so the cone is
+        # honestly-sized + seed-independent (helen D18).
         from ..models.intraday_tft import IntradayTFTLiteModel
 
         kw = dict(tft_kwargs or {})
-        factories["tft_lite"] = lambda: IntradayTFTLiteModel(
-            target_col=price_col, horizon=horizon, **kw
-        )
+
+        def _make_tft():
+            base = IntradayTFTLiteModel(target_col=price_col, horizon=horizon, **kw)
+            if not tft_conformal:
+                return base
+            from ..models.conformal import ConformalScaledModel
+            return ConformalScaledModel(
+                base=base, target_col=price_col, horizon=horizon
+            )
+
+        factories["tft_lite"] = _make_tft
 
     return run_backtest(
         bars_wide, price_col, splits, factories,
