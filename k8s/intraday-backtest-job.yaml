@@ -1,0 +1,49 @@
+# P3 intraday backtest — GPU pass for the REPORTED verdict (helen D15).
+# Trains IntradayTFTLiteModel (forward-3-bar target) + scores it vs the four
+# baselines through run_intraday_backtest on live raptor data.
+#
+# Requires: a pythia-trainer image REBUILT from main (must include
+# scripts.backtest_intraday + models.intraday_tft, i.e. after PR #11 merges),
+# and the pythia-db secret (dsn → the raptor appdb that holds quote_raw +
+# staging.qqq_pmove + staging.qqq_direction). One-shot Job, GPU-scheduled.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pythia-intraday-backtest
+  namespace: pythia
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: OnFailure
+      runtimeClassName: nvidia
+      containers:
+        - name: backtest
+          image: registry.lan/pythia-trainer:0.2.0   # rebuilt from main (post-#11)
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "scripts.backtest_intraday"]
+          args:
+            - --start=2023-05-22
+            - --end=2026-07-10
+            - --bar-minutes=10
+            - --horizon=3
+            - --initial-train=200
+            - --eval-size=39
+            - --with-tft
+            - --encoder-length=39
+            - --hidden-size=32
+            - --max-epochs=60
+            - --tft-batch-size=128
+            - --report=/data/intraday_report.json
+          env:
+            - name: PYTHIA_DB_DSN
+              valueFrom:
+                secretKeyRef: { name: pythia-db, key: dsn }
+          resources:
+            requests: { cpu: 500m, memory: 2Gi, nvidia.com/gpu: 1 }
+            limits: { cpu: "4", memory: 8Gi, nvidia.com/gpu: 1 }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: pythia-data }
