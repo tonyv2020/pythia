@@ -187,9 +187,26 @@ def assemble_intraday_dataset(
 
 
 def overnight_mask(bars_wide: pd.DataFrame) -> pd.Series:
-    """Boolean Series: True where the next-bar target should be KEPT (i.e. NOT
-    an overnight-gap row). The backtest applies this so intraday models are
-    scored on within-session moves only. First bar of each session → False."""
+    """Boolean Series: True where the next-bar (TRAILING) target should be KEPT
+    (i.e. NOT an overnight-gap row). First bar of each session → False. Use this
+    for a 1-bar horizon; for a forward multi-bar horizon use
+    ``forward_session_mask``."""
     if "is_session_open" not in bars_wide.columns:
         return pd.Series(True, index=bars_wide.index)
     return ~bars_wide["is_session_open"].astype(bool)
+
+
+def forward_session_mask(bars_wide: pd.DataFrame, horizon: int) -> pd.Series:
+    """Boolean Series for a FORWARD ``horizon``-bar target: True where bar t and
+    bar t+horizon fall in the SAME session (calendar date), so the forecast
+    interval [t, t+h] does NOT cross an overnight gap. End-of-session bars whose
+    forward target would span overnight → False (excluded from scoring). This is
+    the P3 within-session mask for the 30-min = 3-bar horizon.
+    """
+    idx = pd.to_datetime(bars_wide.index)
+    dates = pd.Series([ts.date() for ts in idx], index=bars_wide.index)
+    same = dates.values[:-horizon] == dates.values[horizon:] if horizon > 0 else []
+    keep = pd.Series(False, index=bars_wide.index)
+    if horizon > 0 and len(bars_wide) > horizon:
+        keep.iloc[: len(bars_wide) - horizon] = same
+    return keep
