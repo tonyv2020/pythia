@@ -359,3 +359,25 @@ doesn't forecast that far and empty cone would be misleading.
    (calibrated bands, skill-vs-RW always reported, no alpha copy).
 **Why:** completes the panel Tony validated; each piece is honest-by-construction and independently
 shippable; the P4-polish-first ordering avoids chart-component churn against the multi-target toggle.
+
+## D25 — P4-polish ACCEPTED: broken axis (readable intraday) + 30-day event ribbon (2026-07-12, helen live-verified)
+Verified live on raptor.tonyvigna.com (base=/ holds: unauth root=sign-in, auth mounts ~3MB, assets
+from /assets/ new hash index-DLzDElmz.js). Both D24 polish items landed: (1) BROKEN/PIECEWISE forward
+axis — intraday cone (now→+30m, minute ticks) now has REAL WIDTH and reads cleanly (green P90 / orange
+P10 / blue actual) with a labeled seam ("intraday minutes | daily sessions"), then the daily cone
+(+1d→+5d) — no longer a compressed sliver; (2) 30-DAY EVENT RIBBON renders all 7 events (GOOG, TSLA,
+AMZN, META, FOMC, AAPL, MSFT, NVDA, CPI), decoupled from the +5d forecast axis, with in-window GOOG
+also marked on the chart. Badges honest (daily AMBER 73.7%, intraday CALIBRATED 77.4%). **P4-polish = DONE.**
+
+## D26 — P5a range target: serve rolling_range, conformal-calibrated + honest (2026-07-12, helen)
+The multi-target toggle needs a range/vol model. Bake-off: **rolling_range WINS CRPS (0.00617 vs
+range_tft 0.00715)**, and the range-TFT head is **under-dispersed (cov80 0.680, below the 0.75 gate)** —
+same "simple ≈/> TFT" null shape as price (D2/D14/D19). DECISION: **v1 range target = rolling_range**
+(the CRPS winner), with the **same per-window conformal calibration as price (D18) applied to its
+P10/P90 bands** so cov80 lands in-gate; if conformal can't reach ~0.80, **disclose honestly** (amber
+badge + drift note, per D20) rather than ship tight bands. Do NOT serve the raw under-dispersed
+range-TFT. The multi-target toggle shows price ↔ range each with its OWN calibration badge + skill-vs-RW,
+no alpha copy. **Why:** mirrors the price precedent exactly — serve the best-CRPS model with honestly
+calibrated (or honestly disclosed) uncertainty; the range null is itself an honest result. P5c
+(attention viz) proceeds in parallel per D24 (independent, no external contract — no need to hold it
+for P4-polish, which is now verified anyway).
