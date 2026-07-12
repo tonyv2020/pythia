@@ -152,6 +152,57 @@ def create_app(registry: ModelRegistry | None = None) -> FastAPI:
             "variable_importance": weights,
         }
 
+    # ------------------------------------------------------------------
+    # /events (P4): known-future event markers for the overlaid cone panel.
+    # Sourced from static calendars per D3 (dataset must be replayable), no
+    # live scrape. FOMC dates from pythia.data.calendar_features.FOMC_DATES +
+    # a small static QQQ-relevant earnings list. Panel renders each marker on
+    # the forward time axis and widens the cone near it.
+    # ------------------------------------------------------------------
+    from datetime import date as _date, datetime as _dt, timedelta as _td
+    from ..data.calendar_features import FOMC_DATES as _FOMC_DATES
+
+    _QQQ_EARNINGS_WEEK: list[dict] = [
+        # Best-effort static QQQ-relevant earnings anchors. Update per quarter;
+        # replayability > freshness (D3). Panel exposes date + label.
+        {"date": "2026-07-15", "label": "GOOG EPS"},
+        {"date": "2026-07-22", "label": "TSLA EPS"},
+        {"date": "2026-07-24", "label": "AMZN + META EPS"},
+        {"date": "2026-07-29", "label": "AAPL EPS"},
+        {"date": "2026-07-30", "label": "MSFT + NVDA EPS"},
+        {"date": "2026-08-05", "label": "CPI (BLS)"},
+    ]
+
+    @app.get("/events")
+    def events(
+        start: str | None = Query(None, description="ISO date; default: today"),
+        end: str | None = Query(None, description="ISO date; default: today+30d"),
+    ) -> dict:
+        def _parse(v: str | None, default: _date) -> _date:
+            if not v:
+                return default
+            try:
+                return _date.fromisoformat(v)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
+
+        today = _dt.utcnow().date()
+        s_ = _parse(start, today)
+        e_ = _parse(end, today + _td(days=30))
+        if e_ < s_:
+            raise HTTPException(status_code=400, detail="end must be >= start")
+
+        out: list[dict] = []
+        for f in _FOMC_DATES:
+            if s_ <= f <= e_:
+                out.append({"date": f.isoformat(), "label": "FOMC decision", "kind": "fomc"})
+        for ev in _QQQ_EARNINGS_WEEK:
+            d = _date.fromisoformat(ev["date"])
+            if s_ <= d <= e_:
+                out.append({"date": ev["date"], "label": ev["label"], "kind": "earnings"})
+        out.sort(key=lambda x: x["date"])
+        return {"start": s_.isoformat(), "end": e_.isoformat(), "events": out}
+
     return app
 
 
