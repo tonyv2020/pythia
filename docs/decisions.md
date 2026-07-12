@@ -186,3 +186,19 @@ Decisions: (a) floor-0.02 sigma fix APPROVED — disclose it in the methodology 
 (b) GREENLIGHT the intraday TFT-lite (deep sample, honest+solid baselines, same scored path). Train
 on the 2080 Ti for the reported verdict (CPU ok for a smoke test only). The intraday-TFT-vs-p_move
 verdict is the next Tony one-liner.
+
+## D16 — Intraday TFT merged; Pythia goes live (deployment greenlit) (2026-07-12)
+- **PR #11 merged** (intraday TFT-lite): `IntradayTFTLiteModel` overrides ONLY the target to the
+  FORWARD-3-bar return log(px[t+3]/px[t]) so it predicts what the harness scores (avoids a silent
+  1-bar-trained / 3-bar-scored bug — unit-tested). p_move calib_floor DISCLOSED in
+  docs/p3-intraday-design.md. Suite green.
+- **PR #10 merged** (registry ensure_schema tolerates InsufficientPrivilege when the table exists —
+  defensive, for the shared-DB deploy).
+**DEPLOYMENT** — Pythia goes live. Greenlit the twin to: (1) rebuild `pythia-trainer` from main
+(now carries the intraday code) + run the intraday backtest GPU Job on the 2080 Ti → the
+intraday-vs-p_move VERDICT (Tony ping). (2) Build+deploy the pythia SERVICE — pythia-serve (FastAPI
+/latest + /variable-importance), pythia-trainer, **registry in raptor's appdb** (a pythia schema via
+PYTHIA_DB_DSN — decoupled tables, shared pg instance), ingress `/pythia/api/*`, Authentik
+ProxyProvider — so P2's raptor panel (raptor-intel PR #34) consumes it live. Chose build-serve-now
+over hold-for-#34: we are driving to deployment, serve+panel ship together, and helen
+screenshot-VERIFIES P2 live rather than blocking on a frontend code review.
