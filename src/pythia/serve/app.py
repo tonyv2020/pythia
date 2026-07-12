@@ -115,6 +115,10 @@ def create_app(registry: ModelRegistry | None = None) -> FastAPI:
         cov = float(tft.get("coverage_80", float("nan")))
         calibrated = CALIBRATION_LOWER <= cov <= CALIBRATION_UPPER
         response.headers["X-Pythia-Calibrated"] = "true" if calibrated else "false"
+        # P5a multi-target (D25): the range block, populated at register time by
+        # scripts.register_range_block (compute_range_block → report_json.range).
+        # Absent until that runs → null; the panel toggle hides the range cone.
+        range_block = rec.report_json.get("range")
         return {
             "model_name": rec.model_name,
             "model_version": rec.model_version,
@@ -126,6 +130,14 @@ def create_app(registry: ModelRegistry | None = None) -> FastAPI:
             "calibrated": calibrated,
             "calibration_band": [CALIBRATION_LOWER, CALIBRATION_UPPER],
             "notes": _build_notes(tft, rw),
+            # Multi-target blocks — panel toggle switches which drives the cone.
+            "price": {
+                "cone": None,  # price cone is derived panel-side from the report
+                "coverage_80": cov,
+                "calibrated": calibrated,
+                "badge": "green" if calibrated else "amber",
+            },
+            "range": range_block,
         }
 
     @app.get("/attention")

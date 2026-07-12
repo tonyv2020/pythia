@@ -48,14 +48,22 @@ class ConformalScaledModel(Model):
     # near-zero-denominator failure mode fixed in the p_move baseline.
     sigma_floor_frac: float = 0.25
     sigma_floor_abs: float = 1e-9
+    # P5a: calibrate against an arbitrary target (e.g. realized-range) instead of
+    # the price return — must MATCH the target the harness scores for this model.
+    # None → the default price target (_target_returns), unchanged.
+    target_fn: "Callable[[pd.DataFrame], pd.Series] | None" = None
 
     _s: float = field(default=1.0, init=False)
     _floor: float = field(default=1e-9, init=False)
 
     def fit(self, train: pd.DataFrame) -> None:
         self.base.fit(train)
-        # Same target the harness scores (trailing 1-step for h=1, forward-h else).
-        y = _target_returns(train, self.target_col, self.horizon).dropna()
+        # The SAME target the harness scores for this model (price return by
+        # default; a range/other target via target_fn — P5a).
+        if self.target_fn is not None:
+            y = self.target_fn(train).dropna()
+        else:
+            y = _target_returns(train, self.target_col, self.horizon).dropna()
         # Skip the base's encoder warm-up rows — there it returns a fallback
         # forecast (flat mean, fixed wide sigma) that would bias the scale.
         warm = int(getattr(self.base, "encoder_length", 0) or 0)

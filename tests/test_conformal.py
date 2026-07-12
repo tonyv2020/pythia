@@ -77,3 +77,31 @@ def test_conformal_thin_calibration_is_noop():
     assert m._s == 1.0
     fc = m.predict(df.index[:5])
     assert np.allclose(fc.sigma.to_numpy(), 0.01)
+
+
+def test_conformal_target_fn_calibrates_custom_target():
+    """P5a: with target_fn, conformal calibrates train coverage on THAT target
+    (e.g. realized-range), not the price return."""
+    from pythia.features.targets import realized_range_target
+
+    class _RangeBase(Model):
+        encoder_length = 0
+        def fit(self, train): pass
+        def predict(self, idx):
+            n = len(idx)
+            return ProbForecast(mean=pd.Series(np.full(n, 0.02), index=idx),
+                                sigma=pd.Series(np.full(n, 0.001), index=idx))
+
+    df = _frame(200)
+    # give it high/low so realized_range_target computes
+    df = df.assign(QQQ_high=df["QQQ_close"] + 1.0, QQQ_low=df["QQQ_close"] - 1.0)
+    def rfn(f):
+        return realized_range_target(f["QQQ_high"], f["QQQ_low"]).reindex(f.index)
+    m = ConformalScaledModel(base=_RangeBase(), target_col="QQQ_close",
+                             horizon=1, coverage=0.80, target_fn=rfn)
+    m.fit(df)
+    y = rfn(df).dropna()
+    z80 = float(norm.ppf(0.90))
+    scaled = m._s * np.maximum(0.001, m._floor)
+    cov = float((np.abs(y.to_numpy() - 0.02) <= z80 * scaled).mean())
+    assert abs(cov - 0.80) < 0.05  # calibrated on the RANGE target by construction

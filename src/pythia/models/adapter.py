@@ -27,15 +27,13 @@ the actual quantiles independently (i.e. it doesn't assume Normal).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Sequence
 
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from ..backtest.protocols import Model, ProbForecast
+from ..backtest.protocols import ProbForecast
 from ..features.lag import LagPolicy, build_features
 from ..features.targets import realized_range_target, return_target
 from .dataset import PythiaWindowDataset
@@ -66,6 +64,10 @@ class TFTLiteModel:
     quantiles: tuple[float, ...] = (0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95)
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     seed: int = 1337
+    # Which trained head predict() serves: 0 = return (default, P1), 1 = range
+    # (P5a multi-target — the model already trains both; this exposes the range
+    # head as a ProbForecast). No-op for the price model.
+    target_head: int = 0
 
     # Fitted state (populated by fit()):
     _model: TFTLite | None = field(default=None, init=False, repr=False)
@@ -221,7 +223,6 @@ class TFTLiteModel:
         # feat up to and including date t-1 (or the last train row if t is
         # the first eval date).
         preds = []
-        train_index = train.index
         q_idx_50 = self.quantiles.index(0.50)
         q_idx_10 = self.quantiles.index(0.10)
         q_idx_90 = self.quantiles.index(0.90)
@@ -237,7 +238,7 @@ class TFTLiteModel:
             x = torch.from_numpy(window.astype(np.float32)).unsqueeze(0).to(self.device)
             with torch.no_grad():
                 q_preds, _ = model(x)
-            q_ret = q_preds[0].squeeze(0).detach().cpu().numpy()
+            q_ret = q_preds[self.target_head].squeeze(0).detach().cpu().numpy()
             preds.append((float(q_ret[q_idx_50]),
                           float(q_ret[q_idx_10]),
                           float(q_ret[q_idx_90])))
