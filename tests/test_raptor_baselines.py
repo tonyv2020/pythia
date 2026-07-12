@@ -67,6 +67,22 @@ def test_pmove_missing_eval_pmove_uses_fallback():
     assert (fc.sigma > 0).all()  # fell back to train-median p_move, not NaN
 
 
+def test_pmove_nearzero_tail_does_not_explode_sigma():
+    """A fat near-zero p_move tail must NOT blow up the c calibration (the live
+    CRPS-45x bug). With calib_floor, near-zero rows are dropped from fit +
+    floored in predict, so sigma stays bounded."""
+    df, idx = _bars(160)
+    pm = _pmove(idx).copy()
+    # Inject a near-zero tail on a third of the bars.
+    pm.iloc[::3] = 1e-5
+    m = RaptorPMove("QQQ_close", pm, horizon=3, calib_floor=0.02)
+    m.fit(df.iloc[:120])
+    fc = m.predict(idx[120:150])
+    # Sigma must be finite and in a sane band (not the exploded 0.1+ scale).
+    assert np.isfinite(fc.sigma).all()
+    assert fc.sigma.max() < 0.1
+
+
 def test_pmove_too_few_rows_raises():
     df, idx = _bars(n=40)
     m = RaptorPMove("QQQ_close", _pmove(idx), horizon=1, min_train_rows=100)
