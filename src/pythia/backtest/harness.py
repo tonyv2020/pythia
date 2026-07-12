@@ -78,6 +78,7 @@ def run_backtest(
     eval_mask: "pd.Series | Callable[[pd.DataFrame], pd.Series] | None" = None,
     horizon: int = 1,
     purge_last_train_rows: int | None = None,
+    target_fn: "Callable[[pd.DataFrame], pd.Series] | None" = None,
 ) -> dict[str, Report]:
     """Fit each model on each split, score, aggregate.
 
@@ -105,6 +106,14 @@ def run_backtest(
       * ``horizon > eval_size`` raises (a split with no clean eval is exactly
         the leak we purge against — fail loud, never silent).
 
+    ``target_fn`` (P5a): compute the scored target from the frame instead of the
+    default price log-return. ``None`` (default) → ``_target_returns`` (the
+    price target, unchanged). Pass e.g. the realized-range target
+    ``log(high/low)`` to score a multi-target (range) forecast on the SAME
+    leak-free walk-forward machinery. The returned Series is indexed on
+    ``frame.index``; NaNs (e.g. horizon edges) are dropped per split like the
+    default path. ``horizon`` still governs purge/eval-cap geometry.
+
     Returns ``{model_name: Report}``. If a factory named ``rw_name`` is
     included, MAE-skill-vs-RW is computed for every other model.
     """
@@ -113,7 +122,9 @@ def run_backtest(
     purge = purge_last_train_rows if purge_last_train_rows is not None else max(horizon - 1, 0)
 
     frame = frame.sort_index()
-    returns = _target_returns(frame, target_col, horizon)
+    returns = target_fn(frame) if target_fn is not None else _target_returns(
+        frame, target_col, horizon
+    )
 
     mask_series: pd.Series | None = None
     if eval_mask is not None:

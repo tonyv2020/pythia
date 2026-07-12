@@ -2,6 +2,7 @@
 
 from .last_return import LastReturn
 from .random_walk import RandomWalk
+from .range_baselines import LastRange, RollingRange
 from .raptor_direction import RaptorDirection
 from .raptor_p_move import RaptorPMove, RaptorPMoveStub
 
@@ -11,4 +12,6 @@ __all__ = [
     "RaptorPMove",
     "RaptorPMoveStub",
     "RaptorDirection",
+    "LastRange",
+    "RollingRange",
 ]
