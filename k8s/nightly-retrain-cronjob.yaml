@@ -5,6 +5,13 @@
 # Runs at 09:15 UTC Mon-Fri = post-close US session so raptor's daily bars
 # are finalised. helen owns the schedule; adjust if raptor's ingest cadence
 # changes.
+#
+# 2026-07-13 (twin per helen D28): image was `registry.lan/pythia-trainer:0.1.0`
+# which never existed in the registry — the cronjob had never fired. Follow the
+# agent-2 conf-60 Job pattern: pytorch base + hostPath-mounted source + inline
+# `pip install -e .`. Source at /home/shared/dev/workspace/pythia is the same
+# main worktree everyone else uses, so a merge to main is picked up automatically
+# on the next cron fire (no image rebuild needed for pythia code changes).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -21,19 +28,22 @@ spec:
       backoffLimit: 1
       template:
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
+          runtimeClassName: nvidia
           containers:
             - name: trainer
-              image: registry.lan/pythia-trainer:0.1.0
+              image: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
               imagePullPolicy: IfNotPresent
-              command: ["python", "-m", "scripts.nightly_retrain"]
-              # Defaults in scripts.nightly_retrain now opt INTO the D8
-              # backfill (yfinance, split-adjusted, 2018-01-01+, full board,
-              # initial_train=252, eval_size=21). Pass overrides only when
-              # helen wants a diagnostic run on the thin default.
+              command: ["bash", "-c"]
               args:
-                - --data-dir=/data
-                - --model-name=tft_lite_daily_qqq
+                - |
+                  set -euo pipefail
+                  cd /pythia
+                  pip install -q -e . scipy yfinance psycopg[binary] 2>&1 | tail -3
+                  python -m scripts.nightly_retrain \
+                    --data-dir /data \
+                    --model-name tft_lite_daily_qqq \
+                    --artifact-uri file:///data/report.json
               env:
                 - name: PYTHIA_DB_DSN
                   valueFrom:
@@ -51,9 +61,15 @@ spec:
                   memory: 4Gi
                   nvidia.com/gpu: 1
               volumeMounts:
+                - name: pythia
+                  mountPath: /pythia
                 - name: data
                   mountPath: /data
           volumes:
+            - name: pythia
+              hostPath:
+                path: /home/shared/dev/workspace/pythia
+                type: Directory
             - name: data
               persistentVolumeClaim:
                 claimName: pythia-data
