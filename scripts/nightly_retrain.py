@@ -45,6 +45,29 @@ def _run(cmd: list[str]) -> None:
     subprocess.check_call(cmd)
 
 
+def _run_soft(cmd: list[str], label: str) -> bool:
+    """Run a non-critical step; WARN + continue on failure instead of aborting.
+
+    Used for the P5 diagnostic blocks (range / breakouts): they enrich the
+    freshly-registered row but must NOT fail the whole nightly if e.g. yfinance
+    hiccups — the core model already registered and serves. The panel degrades
+    gracefully to a null block and the next nightly retries. Returns True on
+    success so the caller can log a summary.
+    """
+    sys.stdout.write(f"$ {' '.join(cmd)}\n")
+    sys.stdout.flush()
+    try:
+        subprocess.check_call(cmd)
+        return True
+    except subprocess.CalledProcessError as e:
+        sys.stderr.write(
+            f"WARNING: {label} failed (exit {e.returncode}); row stays without "
+            f"that block, panel shows the null-safe state, next nightly retries.\n"
+        )
+        sys.stderr.flush()
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="nightly_retrain")
     p.add_argument("--data-dir", type=Path, default=Path("/data"))
@@ -75,6 +98,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--eval-size", type=int, default=21)
     p.add_argument("--max-epochs", type=int, default=80)
+    p.add_argument(
+        "--skip-p5-blocks",
+        action="store_true",
+        help="skip attaching the P5a range + P5b breakout blocks to the new "
+             "row (diagnostic runs). Default: attach them so /latest range + "
+             "/breakouts survive the retrain (helen D28).",
+    )
     args = p.parse_args(argv)
 
     args.data_dir.mkdir(parents=True, exist_ok=True)
@@ -121,6 +151,33 @@ def main(argv: list[str] | None = None) -> int:
         "--report", str(report),
         "--artifact-uri", args.artifact_uri,
     ])
+
+    # P5 multi-target blocks (helen D28: P5a range + P5b breakouts ACCEPTED).
+    # register_report writes ONLY the price report (+ the trainer's attention)
+    # onto the new vYYYY-MM-DD row, so without this step every nightly ORPHANS
+    # the range + breakouts blocks and /latest range + /breakouts go null until
+    # someone re-populates by hand. Attach them here, onto the row we just
+    # registered (the populate scripts UPSERT the SAME latest row, same
+    # model_version). They re-assemble with high/low (hl_symbols) since the
+    # price board.parquet has none — a self-contained ~min of CPU each. Soft:
+    # a yfinance blip must not fail the whole retrain; the panel degrades to the
+    # null-safe block and the next nightly retries.
+    if not args.skip_p5_blocks:
+        hist = args.historical if args.historical else "none"
+        block_args = [
+            "--model-name", args.model_name,
+            "--start", args.start, "--end", end,
+            "--symbol", "QQQ", "--historical", hist,
+        ]
+        ok_range = _run_soft(
+            [sys.executable, "-m", "scripts.register_range_block", *block_args],
+            "register_range_block (P5a)")
+        ok_breakouts = _run_soft(
+            [sys.executable, "-m", "scripts.register_breakouts", *block_args],
+            "register_breakouts (P5b)")
+        sys.stdout.write(
+            f"P5 blocks: range={'ok' if ok_range else 'FAILED'} "
+            f"breakouts={'ok' if ok_breakouts else 'FAILED'}\n")
 
     sys.stdout.write(f"nightly retrain complete: {today}\n")
     return 0
