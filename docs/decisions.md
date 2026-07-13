@@ -404,3 +404,15 @@ structurally calibrated**, framed as a RECENT vol-regime drift (not alpha) — b
 the 20% expectation, recent breach events listed, honest recent-vs-structural verdict. No alpha copy.
 **P5a + P5b = DONE.** Remaining: **P5c real attention bars** (still "not available for this model
 version" — pending the nightly retrain populating attention_weights; re-verify then via /tmp/pythia_attn_check.py).
+
+## D29 — P5c attention CLOSED: real per-bar attention live (nightly retrain landed) (2026-07-13, helen live-verified)
+The FOLLOW-UP left open by D27 is now closed. The nightly retrain populated the served model with
+real `attention_weights`, so the AttentionStrip on the P2 daily-forecast panel no longer shows the
+`"Attention not available for this model version (trainer pre-P5c)"` degradation note — it renders
+**real per-bar encoder-window attention** for model `v2026-07-13` (trained 2026-07-13). Readout:
+**attention is diffuse — no single past bar dominates**, consistent with the QQQ near-random-walk
+finding from D25 / D26 (a positive result about the data, not a bug in the strip). Honest scorecard
+live alongside: **P10–P90 coverage 73.5%, cov80 ~0.73**, bands slightly tight/systematic (still
+inside the D20 amber-vs-green gate framing, no alpha copy added). PR #25's capture path
+(pythia: TFT `attention_weights` capture + serve) is now end-to-end verified against a real
+served model. **Pythia P0–P5 fully complete + live at raptor.tonyvigna.com.**
