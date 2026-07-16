@@ -20,6 +20,7 @@ from pythia.metrics import (
 
 # ---- point ----
 
+
 def test_mae_zero_on_perfect_forecast() -> None:
     assert mae([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]) == 0.0
 
@@ -47,6 +48,7 @@ def test_mae_skill_vs_semantics() -> None:
 
 # ---- directional ----
 
+
 def test_directional_hit_rate_all_right() -> None:
     assert directional_hit_rate([1, -1, 1, -1], [2, -2, 3, -3]) == 1.0
 
@@ -61,6 +63,7 @@ def test_directional_ignores_double_zero() -> None:
 
 
 # ---- coverage ----
+
 
 def test_coverage_perfect_interval() -> None:
     y = np.array([0.0, 0.5, -0.5])
@@ -85,6 +88,7 @@ def test_coverage_swapped_bounds_dont_count() -> None:
 
 
 # ---- CRPS ----
+
 
 def test_crps_zero_when_sigma_tiny_and_correct() -> None:
     y = np.array([0.0])
@@ -112,6 +116,7 @@ def test_crps_sigma_must_be_positive() -> None:
 
 
 # ---- pinball ----
+
 
 def test_pinball_symmetric_at_median() -> None:
     y = np.array([1.0, -1.0])

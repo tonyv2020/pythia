@@ -22,9 +22,7 @@ def coverage(y_true: ArrayLike, lower: ArrayLike, upper: ArrayLike) -> float:
     lo = np.asarray(lower, dtype=float)
     hi = np.asarray(upper, dtype=float)
     if not (yt.shape == lo.shape == hi.shape):
-        raise ValueError(
-            f"shape mismatch: y_true={yt.shape} lower={lo.shape} upper={hi.shape}"
-        )
+        raise ValueError(f"shape mismatch: y_true={yt.shape} lower={lo.shape} upper={hi.shape}")
     mask = np.isfinite(yt) & np.isfinite(lo) & np.isfinite(hi) & (lo <= hi)
     if not mask.any():
         return float("nan")

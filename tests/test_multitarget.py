@@ -19,17 +19,24 @@ def _long():
     for sym, base in (("QQQ", 400.0), ("SPY", 470.0)):
         for i, d in enumerate(("2026-06-08", "2026-06-09", "2026-06-10")):
             c = base + i
-            rows.append({"symbol": sym, "date": pd.Timestamp(d).date(),
-                         "open": c - 0.5, "high": c + 1.0, "low": c - 1.0,
-                         "close": c, "volume": 100 + i})
+            rows.append(
+                {
+                    "symbol": sym,
+                    "date": pd.Timestamp(d).date(),
+                    "open": c - 0.5,
+                    "high": c + 1.0,
+                    "low": c - 1.0,
+                    "close": c,
+                    "volume": 100 + i,
+                }
+            )
     return pd.DataFrame(rows)
 
 
 def test_hl_added_only_for_requested_symbol():
     wide = _pivot_wide(_long(), hl_symbols={"QQQ"})
     # QQQ gets high/low; SPY does NOT (target-only → covariates unchanged).
-    for col in ("QQQ_close", "QQQ_volume", "QQQ_high", "QQQ_low",
-                "SPY_close", "SPY_volume"):
+    for col in ("QQQ_close", "QQQ_volume", "QQQ_high", "QQQ_low", "SPY_close", "SPY_volume"):
         assert col in wide.columns, col
     assert "SPY_high" not in wide.columns
     assert "SPY_low" not in wide.columns

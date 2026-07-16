@@ -27,9 +27,7 @@ def return_target(px: pd.Series) -> pd.Series:
     return np.log(px / px.shift(1)).rename(f"{px.name}_ret" if px.name else "ret")
 
 
-def realized_range_target(
-    high: pd.Series, low: pd.Series, name: str | None = None
-) -> pd.Series:
+def realized_range_target(high: pd.Series, low: pd.Series, name: str | None = None) -> pd.Series:
     """Log(high / low). Positive semi-definite; 0 only for a flat bar."""
     h = high.astype(float).sort_index()
     lo = low.astype(float).sort_index()

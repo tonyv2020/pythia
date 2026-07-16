@@ -32,9 +32,13 @@ def test_range_backtest_scores_target_and_baselines():
     df = _frame()
     splits = list(expanding_walk_forward(df.index, initial_train_size=60, eval_size=20))
     reports = run_backtest(
-        df, "QQQ_close", splits,
-        {"last_range": lambda: LastRange("QQQ_high", "QQQ_low"),
-         "rolling_range": lambda: RollingRange("QQQ_high", "QQQ_low")},
+        df,
+        "QQQ_close",
+        splits,
+        {
+            "last_range": lambda: LastRange("QQQ_high", "QQQ_low"),
+            "rolling_range": lambda: RollingRange("QQQ_high", "QQQ_low"),
+        },
         rw_name="last_range",
         target_fn=_range_fn,
     )
@@ -63,6 +67,8 @@ def test_target_fn_none_is_price_return_default():
     df = pd.DataFrame({"QQQ_close": 400.0 + np.arange(120) * 0.1}, index=idx)
     splits = list(expanding_walk_forward(df.index, initial_train_size=60, eval_size=20))
     from pythia.baselines import RandomWalk
-    reports = run_backtest(df, "QQQ_close", splits,
-                           {"random_walk": lambda: RandomWalk("QQQ_close")})
+
+    reports = run_backtest(
+        df, "QQQ_close", splits, {"random_walk": lambda: RandomWalk("QQQ_close")}
+    )
     assert reports["random_walk"].n_eval_obs > 0

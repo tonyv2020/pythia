@@ -90,8 +90,8 @@ def test_pmove_sparse_pmove_degrades_to_flat_sigma_not_crash():
     df, idx = _bars(n=80)
     # min_train_rows unreachable → forces the degrade path.
     m = RaptorPMove("QQQ_close", _pmove(idx), horizon=1, min_train_rows=1000)
-    m.fit(df.iloc[:60])            # must NOT raise
-    assert m._c is None            # degraded mode
+    m.fit(df.iloc[:60])  # must NOT raise
+    assert m._c is None  # degraded mode
     fc = m.predict(idx[60:75])
     assert (fc.sigma > 0).all()
     # Flat mode → constant sigma across eval bars.

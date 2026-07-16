@@ -25,7 +25,7 @@ def _ticks() -> pd.DataFrame:
     rows = []
     plan = [
         # (symbol, date, time, price, volume)
-        ("QQQ", date(2026, 6, 8), "08:00:00", 400.0, 5),   # pre-market → dropped
+        ("QQQ", date(2026, 6, 8), "08:00:00", 400.0, 5),  # pre-market → dropped
         ("QQQ", date(2026, 6, 8), "09:31:00", 401.0, 10),  # bar 09:30
         ("QQQ", date(2026, 6, 8), "09:45:00", 403.0, 10),  # bar 09:30 (same 30m)
         ("QQQ", date(2026, 6, 8), "10:05:00", 402.0, 10),  # bar 10:00
@@ -41,16 +41,14 @@ def _ticks() -> pd.DataFrame:
 def test_bars_roll_up_ohlcv_and_drop_extended_hours():
     bars = bars_from_ticks(_ticks(), bar_minutes=30, session_only=True)
     # QQQ 09:30 bar on 06-08 aggregates the 09:31 + 09:45 ticks (not 08:00).
-    q0930 = bars[(bars.symbol == "QQQ") &
-                 (bars.bar_ts == pd.Timestamp("2026-06-08 09:30"))].iloc[0]
+    q0930 = bars[(bars.symbol == "QQQ") & (bars.bar_ts == pd.Timestamp("2026-06-08 09:30"))].iloc[0]
     assert q0930["open"] == 401.0
     assert q0930["close"] == 403.0
     assert q0930["high"] == 403.0
     assert q0930["low"] == 401.0
     assert q0930["volume"] == 20
     # The 08:00 pre-market tick is gone.
-    assert not ((bars.symbol == "QQQ") &
-                (bars.bar_ts == pd.Timestamp("2026-06-08 08:00"))).any()
+    assert not ((bars.symbol == "QQQ") & (bars.bar_ts == pd.Timestamp("2026-06-08 08:00"))).any()
 
 
 def test_session_open_marks_first_bar_of_each_session():
@@ -59,19 +57,32 @@ def test_session_open_marks_first_bar_of_each_session():
     # First QQQ bar of 06-08 and first of 06-09 are session-open; the 10:00
     # bar on 06-08 is not.
     opens = qqq.set_index("bar_ts")["is_session_open"].to_dict()
-    assert opens[pd.Timestamp("2026-06-08 09:30")] is True or opens[pd.Timestamp("2026-06-08 09:30")]
+    assert (
+        opens[pd.Timestamp("2026-06-08 09:30")] is True or opens[pd.Timestamp("2026-06-08 09:30")]
+    )
     assert not opens[pd.Timestamp("2026-06-08 10:00")]
     assert opens[pd.Timestamp("2026-06-09 09:30")]
 
 
 def test_wide_schema_and_calendar_features():
     res = assemble_intraday_dataset(
-        date(2026, 6, 8), date(2026, 6, 9), bar_minutes=30,
-        symbols=["QQQ", "SPY"], ticks_fn=lambda syms, s, e: _ticks(),
+        date(2026, 6, 8),
+        date(2026, 6, 9),
+        bar_minutes=30,
+        symbols=["QQQ", "SPY"],
+        ticks_fn=lambda syms, s, e: _ticks(),
     )
     w = res.bars
-    for col in ("QQQ_close", "QQQ_volume", "SPY_close", "SPY_volume",
-                "is_session_open", "minute_of_day", "minutes_to_close", "dow"):
+    for col in (
+        "QQQ_close",
+        "QQQ_volume",
+        "SPY_close",
+        "SPY_volume",
+        "is_session_open",
+        "minute_of_day",
+        "minutes_to_close",
+        "dow",
+    ):
         assert col in w.columns, col
     assert res.bar_minutes == 30
     assert set(res.symbols_included) == {"QQQ", "SPY"}
@@ -83,7 +94,9 @@ def test_wide_schema_and_calendar_features():
 
 def test_missing_symbol_recorded():
     res = assemble_intraday_dataset(
-        date(2026, 6, 8), date(2026, 6, 9), symbols=["QQQ", "SPY", "NVDA"],
+        date(2026, 6, 8),
+        date(2026, 6, 9),
+        symbols=["QQQ", "SPY", "NVDA"],
         ticks_fn=lambda syms, s, e: _ticks(),
     )
     assert "NVDA" in res.symbols_missing
@@ -92,21 +105,26 @@ def test_missing_symbol_recorded():
 
 def test_overnight_mask_excludes_session_open_rows():
     res = assemble_intraday_dataset(
-        date(2026, 6, 8), date(2026, 6, 9), symbols=["QQQ", "SPY"],
+        date(2026, 6, 8),
+        date(2026, 6, 9),
+        symbols=["QQQ", "SPY"],
         ticks_fn=lambda syms, s, e: _ticks(),
     )
     mask = overnight_mask(res.bars)
     # The 06-09 09:30 row is a session open → masked out (False = drop target).
     assert mask.loc[pd.Timestamp("2026-06-09 09:30")] == False  # noqa: E712
     # A mid-session bar is kept.
-    assert mask.loc[pd.Timestamp("2026-06-08 10:00")] == True   # noqa: E712
+    assert mask.loc[pd.Timestamp("2026-06-08 10:00")] == True  # noqa: E712
 
 
 def test_empty_ticks_yields_empty_frame():
     res = assemble_intraday_dataset(
-        date(2026, 6, 8), date(2026, 6, 9), symbols=["QQQ"],
+        date(2026, 6, 8),
+        date(2026, 6, 9),
+        symbols=["QQQ"],
         ticks_fn=lambda syms, s, e: pd.DataFrame(
-            columns=["symbol", "date", "time", "price", "volume"]),
+            columns=["symbol", "date", "time", "price", "volume"]
+        ),
     )
     assert res.bars.empty
     assert res.symbols_missing == ("QQQ",)

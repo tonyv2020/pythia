@@ -106,7 +106,8 @@ class RaptorPMove(Model):
         r_clean = r.dropna()
         self._flat_sigma = (
             max(float(r_clean.std(ddof=1)), self.sigma_floor)
-            if len(r_clean) >= 2 else self.sigma_floor
+            if len(r_clean) >= 2
+            else self.sigma_floor
         )
         pm = self.p_move.reindex(train.index)
         df = pd.concat([r.rename("r"), pm.rename("pm")], axis=1).dropna()

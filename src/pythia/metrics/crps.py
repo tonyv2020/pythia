@@ -16,16 +16,12 @@ from numpy.typing import ArrayLike
 from scipy.stats import norm  # type: ignore[import-not-found]
 
 
-def crps_normal(
-    y_true: ArrayLike, mean: ArrayLike, sigma: ArrayLike
-) -> float:
+def crps_normal(y_true: ArrayLike, mean: ArrayLike, sigma: ArrayLike) -> float:
     yt = np.asarray(y_true, dtype=float)
     mu = np.asarray(mean, dtype=float)
     sd = np.asarray(sigma, dtype=float)
     if not (yt.shape == mu.shape == sd.shape):
-        raise ValueError(
-            f"shape mismatch: y_true={yt.shape} mean={mu.shape} sigma={sd.shape}"
-        )
+        raise ValueError(f"shape mismatch: y_true={yt.shape} mean={mu.shape} sigma={sd.shape}")
     mask = np.isfinite(yt) & np.isfinite(mu) & np.isfinite(sd) & (sd > 0)
     if not mask.any():
         return float("nan")
@@ -34,7 +30,5 @@ def crps_normal(
     sd = sd[mask]
 
     z = (yt - mu) / sd
-    crps = sd * (
-        z * (2.0 * norm.cdf(z) - 1.0) + 2.0 * norm.pdf(z) - 1.0 / np.sqrt(np.pi)
-    )
+    crps = sd * (z * (2.0 * norm.cdf(z) - 1.0) + 2.0 * norm.pdf(z) - 1.0 / np.sqrt(np.pi))
     return float(np.mean(crps))

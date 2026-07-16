@@ -70,9 +70,7 @@ def _fetch_intraday(
         """
     )
     with engine.connect() as conn:
-        return pd.read_sql(
-            q, conn, params={"syms": list(symbols), "start": start, "end": end}
-        )
+        return pd.read_sql(q, conn, params={"syms": list(symbols), "start": start, "end": end})
 
 
 def daily_bars_from_intraday(intraday: pd.DataFrame) -> pd.DataFrame:
@@ -87,9 +85,7 @@ def daily_bars_from_intraday(intraday: pd.DataFrame) -> pd.DataFrame:
     Rows with a single tick still produce a bar (open == high == low == close).
     """
     if intraday.empty:
-        return pd.DataFrame(
-            columns=["symbol", "date", "open", "high", "low", "close", "volume"]
-        )
+        return pd.DataFrame(columns=["symbol", "date", "open", "high", "low", "close", "volume"])
 
     intraday = intraday.copy()
     intraday["price"] = pd.to_numeric(intraday["price"], errors="coerce")
@@ -126,9 +122,7 @@ def daily_bars_from_intraday(intraday: pd.DataFrame) -> pd.DataFrame:
     return daily.reset_index(drop=True)
 
 
-def _pivot_wide(
-    daily: pd.DataFrame, hl_symbols: "set[str] | None" = None
-) -> pd.DataFrame:
+def _pivot_wide(daily: pd.DataFrame, hl_symbols: "set[str] | None" = None) -> pd.DataFrame:
     """Long → wide: index = date, cols = ``{symbol}_close`` / ``{symbol}_volume``.
 
     ``close`` and ``volume`` propagate for every symbol — enough for the price
@@ -156,9 +150,12 @@ def _pivot_wide(
 
     if hl_symbols:
         for measure in ("high", "low"):
-            piv = daily[daily["symbol"].isin(hl_symbols)].pivot(
-                index="date", columns="symbol", values=measure
-            ).add_suffix(f"_{measure}").sort_index()
+            piv = (
+                daily[daily["symbol"].isin(hl_symbols)]
+                .pivot(index="date", columns="symbol", values=measure)
+                .add_suffix(f"_{measure}")
+                .sort_index()
+            )
             wide = wide.join(piv, how="outer")
 
     # Deterministic column ordering (measure grouped by symbol asc).
@@ -217,15 +214,11 @@ def assemble_dataset(
             provider_fn=historical_provider_fn,
         )
         if not historical_long.empty:
-            backfilled = tuple(
-                s for s in wanted if s in set(historical_long["symbol"].unique())
-            )
+            backfilled = tuple(s for s in wanted if s in set(historical_long["symbol"].unique()))
             daily_long = combine_daily(daily_long, historical_long, prefer="raptor")
 
     # After backfill, "present" reflects everything now in the combined frame.
-    present_combined = (
-        set(daily_long["symbol"].unique()) if not daily_long.empty else set()
-    )
+    present_combined = set(daily_long["symbol"].unique()) if not daily_long.empty else set()
     missing = tuple(s for s in wanted if s not in present_combined)
     included = tuple(s for s in wanted if s in present_combined)
 

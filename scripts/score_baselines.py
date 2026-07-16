@@ -28,12 +28,21 @@ def main(argv: list[str] | None = None) -> int:
         description="Run walk-forward + baselines + emit JSON report.",
     )
     p.add_argument("--dataset", type=Path, required=True)
-    p.add_argument("--target", type=str, default="QQQ_close",
-                   help="target column (default: QQQ_close)")
-    p.add_argument("--initial-train", type=int, default=252,
-                   help="initial expanding-window size in rows (default: 252 = ~1 trading yr)")
-    p.add_argument("--eval-size", type=int, default=21,
-                   help="eval window size in rows (default: 21 = ~1 trading mo)")
+    p.add_argument(
+        "--target", type=str, default="QQQ_close", help="target column (default: QQQ_close)"
+    )
+    p.add_argument(
+        "--initial-train",
+        type=int,
+        default=252,
+        help="initial expanding-window size in rows (default: 252 = ~1 trading yr)",
+    )
+    p.add_argument(
+        "--eval-size",
+        type=int,
+        default=21,
+        help="eval window size in rows (default: 21 = ~1 trading mo)",
+    )
     p.add_argument("--report", type=Path, required=True)
     args = p.parse_args(argv)
 
@@ -47,11 +56,13 @@ def main(argv: list[str] | None = None) -> int:
             f"{list(df.columns)[:10]}... (see data-schema.md for naming)"
         )
 
-    splits = list(expanding_walk_forward(
-        df.index,
-        initial_train_size=args.initial_train,
-        eval_size=args.eval_size,
-    ))
+    splits = list(
+        expanding_walk_forward(
+            df.index,
+            initial_train_size=args.initial_train,
+            eval_size=args.eval_size,
+        )
+    )
     if not splits:
         raise SystemExit(
             f"no splits produced — dataset has {len(df)} rows, need "

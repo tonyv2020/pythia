@@ -19,7 +19,7 @@ leakage bug into a loud one — the P1 acceptance test asserts this.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Iterable
 
 import pandas as pd
@@ -29,11 +29,18 @@ import pandas as pd
 # are known at forecast time and MUST NOT be lagged.
 DEFAULT_KNOWN_FUTURE: frozenset[str] = frozenset(
     {
-        "dow", "month", "dom",
-        "is_monday", "is_friday", "is_month_end", "is_quarter_end",
-        "days_to_fomc", "is_earnings_season",
+        "dow",
+        "month",
+        "dom",
+        "is_monday",
+        "is_friday",
+        "is_month_end",
+        "is_quarter_end",
+        "days_to_fomc",
+        "is_earnings_season",
         # Intraday calendar (if a downstream caller flattens intraday to daily):
-        "minute_of_day", "minutes_to_close",
+        "minute_of_day",
+        "minutes_to_close",
     }
 )
 
@@ -57,9 +64,7 @@ class LagPolicy:
             | (self.known_future & self.targets)
         )
         if overlap:
-            raise ValueError(
-                f"column(s) appear in multiple LagPolicy buckets: {sorted(overlap)}"
-            )
+            raise ValueError(f"column(s) appear in multiple LagPolicy buckets: {sorted(overlap)}")
 
     def classified(self) -> frozenset[str]:
         return self.observed | self.known_future | self.targets

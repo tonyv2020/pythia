@@ -49,13 +49,18 @@ def main(argv: list[str] | None = None) -> int:
         artifact_uri=args.artifact_uri,
         git_sha=git_sha,
     )
-    print(json.dumps({
-        "row_id": row_id,
-        "model_name": args.model_name,
-        "model_version": args.model_version,
-        "dataset_hash": dataset_hash,
-        "git_sha": git_sha,
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "row_id": row_id,
+                "model_name": args.model_name,
+                "model_version": args.model_version,
+                "dataset_hash": dataset_hash,
+                "git_sha": git_sha,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

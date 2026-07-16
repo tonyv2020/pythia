@@ -24,8 +24,7 @@ P2/P3 can grow those if the P1 headline number justifies it.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Sequence
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
@@ -40,7 +39,7 @@ class TFTLiteConfig:
     hidden_size: int = 16
     lstm_layers: int = 1
     dropout: float = 0.1
-    n_targets: int = 2                                  # return + range
+    n_targets: int = 2  # return + range
     quantiles: tuple[float, ...] = (0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95)
 
     def n_quantiles(self) -> int:
@@ -90,15 +89,17 @@ class TFTLite(nn.Module):
         )
         self.norm = nn.LayerNorm(cfg.hidden_size)
         # Per-target quantile heads.
-        self.heads = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(cfg.hidden_size, cfg.hidden_size),
-                nn.GELU(),
-                nn.Dropout(cfg.dropout),
-                nn.Linear(cfg.hidden_size, cfg.n_quantiles()),
-            )
-            for _ in range(cfg.n_targets)
-        ])
+        self.heads = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(cfg.hidden_size, cfg.hidden_size),
+                    nn.GELU(),
+                    nn.Dropout(cfg.dropout),
+                    nn.Linear(cfg.hidden_size, cfg.n_quantiles()),
+                )
+                for _ in range(cfg.n_targets)
+            ]
+        )
 
     def forward(self, x: torch.Tensor) -> tuple[list[torch.Tensor], torch.Tensor]:
         """
@@ -116,10 +117,10 @@ class TFTLite(nn.Module):
         detached from the graph and lives on the same device as the input.
         """
         x_weighted, vsn_weights = self.vsn(x)
-        h, _ = self.encoder(x_weighted)                 # (B, T, H)
+        h, _ = self.encoder(x_weighted)  # (B, T, H)
         # Attention pool: query = last step, keys = all steps.
-        q = h[:, -1:, :]                                # (B, 1, H)
-        pooled, attn_w = self.attn(q, h, h)             # (B, 1, H), (B, 1, T)
+        q = h[:, -1:, :]  # (B, 1, H)
+        pooled, attn_w = self.attn(q, h, h)  # (B, 1, H), (B, 1, T)
         # attn_w shape (B, 1, T) — squeeze the query axis; detach so
         # readers don't hold a graph reference across the eval loop.
         self._last_attn_w = attn_w.detach().squeeze(1)  # (B, T)

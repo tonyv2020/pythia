@@ -24,10 +24,10 @@ class WalkForwardSplit:
     """A single walk-forward split (both expanding and rolling variants use
     this shape)."""
 
-    train_start: pd.Timestamp     # inclusive
-    train_end: pd.Timestamp       # exclusive
-    eval_start: pd.Timestamp      # inclusive; == train_end
-    eval_end: pd.Timestamp        # exclusive
+    train_start: pd.Timestamp  # inclusive
+    train_end: pd.Timestamp  # exclusive
+    eval_start: pd.Timestamp  # inclusive; == train_end
+    eval_end: pd.Timestamp  # exclusive
 
     def __post_init__(self) -> None:
         if not (self.train_start < self.train_end == self.eval_start < self.eval_end):
@@ -43,7 +43,9 @@ class WalkForwardSplit:
 RollingSplit = WalkForwardSplit
 
 
-def _slice_bounds(index: pd.DatetimeIndex, start: pd.Timestamp, end: pd.Timestamp) -> tuple[int, int]:
+def _slice_bounds(
+    index: pd.DatetimeIndex, start: pd.Timestamp, end: pd.Timestamp
+) -> tuple[int, int]:
     """Half-open [start, end) slice endpoints in a sorted DatetimeIndex."""
     lo = int(index.searchsorted(start, side="left"))
     hi = int(index.searchsorted(end, side="left"))

@@ -44,8 +44,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--hidden-size", type=int, default=16)
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--report", type=Path, required=True)
-    p.add_argument("--max-splits", type=int, default=None,
-                   help="cap the number of walk-forward splits for a smoke run")
+    p.add_argument(
+        "--max-splits",
+        type=int,
+        default=None,
+        help="cap the number of walk-forward splits for a smoke run",
+    )
     args = p.parse_args(argv)
 
     df = pd.read_parquet(args.dataset)
@@ -55,18 +59,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.target not in df.columns:
         raise SystemExit(f"target {args.target!r} not in dataset")
 
-    splits = list(expanding_walk_forward(
-        df.index,
-        initial_train_size=args.initial_train,
-        eval_size=args.eval_size,
-        step=args.step,
-    ))
+    splits = list(
+        expanding_walk_forward(
+            df.index,
+            initial_train_size=args.initial_train,
+            eval_size=args.eval_size,
+            step=args.step,
+        )
+    )
     if args.max_splits is not None:
         splits = splits[: args.max_splits]
     if not splits:
         raise SystemExit("no splits produced — dataset too short")
 
-    sys.stdout.write(f"walk-forward: {len(splits)} splits\n"); sys.stdout.flush()
+    sys.stdout.write(f"walk-forward: {len(splits)} splits\n")
+    sys.stdout.flush()
 
     reports = run_backtest(
         df,
@@ -79,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
             # target by construction (not seed-lottery). Base model is unchanged
             # so mean / MAE-skill / null-vs-RW verdict are identical; only the
             # predictive sigma gets right-sized.
-            "tft_lite":    lambda: ConformalScaledModel(
+            "tft_lite": lambda: ConformalScaledModel(
                 base=TFTLiteModel(
                     target_col=args.target,
                     encoder_length=args.encoder_length,

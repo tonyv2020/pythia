@@ -12,7 +12,6 @@ import json
 import tempfile
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
@@ -33,21 +32,23 @@ def _sqlite_registry() -> ModelRegistry:
     # SQLite: swap Postgres-specific bits out. The registry uses ANSI SQL
     # for schema creation minus BIGSERIAL + JSONB — the test replaces those.
     with engine.begin() as conn:
-        conn.execute(text(
-            "CREATE TABLE pythia_models ("
-            " id INTEGER PRIMARY KEY AUTOINCREMENT,"
-            " model_name TEXT NOT NULL,"
-            " model_version TEXT NOT NULL,"
-            " trained_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
-            " dataset_hash TEXT NOT NULL,"
-            " report_json TEXT NOT NULL,"
-            " artifact_uri TEXT NOT NULL,"
-            " git_sha TEXT NOT NULL,"
-            " UNIQUE (model_name, model_version)"
-            ")"
-        ))
+        conn.execute(
+            text(
+                "CREATE TABLE pythia_models ("
+                " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                " model_name TEXT NOT NULL,"
+                " model_version TEXT NOT NULL,"
+                " trained_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                " dataset_hash TEXT NOT NULL,"
+                " report_json TEXT NOT NULL,"
+                " artifact_uri TEXT NOT NULL,"
+                " git_sha TEXT NOT NULL,"
+                " UNIQUE (model_name, model_version)"
+                ")"
+            )
+        )
     reg = ModelRegistry(engine)
-    reg._ensured = True   # bypass Postgres ensure_schema
+    reg._ensured = True  # bypass Postgres ensure_schema
     return reg
 
 
@@ -59,14 +60,17 @@ def _sqlite_register(reg: ModelRegistry, **kw) -> int:
         "VALUES (:name, :ver, :hash, :report, :uri, :sha)"
     )
     with reg.engine.begin() as conn:
-        conn.execute(q, {
-            "name": kw["model_name"],
-            "ver": kw["model_version"],
-            "hash": kw["dataset_hash"],
-            "report": json.dumps(kw["report_json"]),
-            "uri": kw["artifact_uri"],
-            "sha": kw["git_sha"],
-        })
+        conn.execute(
+            q,
+            {
+                "name": kw["model_name"],
+                "ver": kw["model_version"],
+                "hash": kw["dataset_hash"],
+                "report": json.dumps(kw["report_json"]),
+                "uri": kw["artifact_uri"],
+                "sha": kw["git_sha"],
+            },
+        )
         row = conn.execute(text("SELECT last_insert_rowid() AS id")).one()
     return int(row.id)
 
@@ -80,15 +84,29 @@ def test_compute_dataset_hash_is_stable() -> None:
 
 def test_registry_latest_returns_most_recent() -> None:
     reg = _sqlite_registry()
-    _sqlite_register(reg,
-        model_name="tft", model_version="v1", dataset_hash="a" * 64,
-        report_json={"tft": {"coverage_80": 0.79}}, artifact_uri="local://x", git_sha="deadbeef")
+    _sqlite_register(
+        reg,
+        model_name="tft",
+        model_version="v1",
+        dataset_hash="a" * 64,
+        report_json={"tft": {"coverage_80": 0.79}},
+        artifact_uri="local://x",
+        git_sha="deadbeef",
+    )
     # Backdate the first so ORDER BY trained_at DESC has something to sort.
     with reg.engine.begin() as conn:
-        conn.execute(text("UPDATE pythia_models SET trained_at = '2020-01-01' WHERE model_version='v1'"))
-    _sqlite_register(reg,
-        model_name="tft", model_version="v2", dataset_hash="b" * 64,
-        report_json={"tft": {"coverage_80": 0.81}}, artifact_uri="local://y", git_sha="cafebabe")
+        conn.execute(
+            text("UPDATE pythia_models SET trained_at = '2020-01-01' WHERE model_version='v1'")
+        )
+    _sqlite_register(
+        reg,
+        model_name="tft",
+        model_version="v2",
+        dataset_hash="b" * 64,
+        report_json={"tft": {"coverage_80": 0.81}},
+        artifact_uri="local://y",
+        git_sha="cafebabe",
+    )
     rec = reg.latest("tft")
     assert rec is not None
     assert rec.model_version == "v2"
@@ -96,10 +114,15 @@ def test_registry_latest_returns_most_recent() -> None:
 
 def test_serve_latest_returns_calibration_verdict() -> None:
     reg = _sqlite_registry()
-    _sqlite_register(reg,
-        model_name="tft_lite_daily_qqq", model_version="v1", dataset_hash="c" * 64,
+    _sqlite_register(
+        reg,
+        model_name="tft_lite_daily_qqq",
+        model_version="v1",
+        dataset_hash="c" * 64,
         report_json={"tft_lite_daily_qqq": {"coverage_80": 0.78, "mae": 0.012}},
-        artifact_uri="local://z", git_sha="feedface")
+        artifact_uri="local://z",
+        git_sha="feedface",
+    )
 
     app = create_app(registry=reg)
     client = TestClient(app)
@@ -112,10 +135,15 @@ def test_serve_latest_returns_calibration_verdict() -> None:
 
 def test_serve_latest_flags_miscalibration() -> None:
     reg = _sqlite_registry()
-    _sqlite_register(reg,
-        model_name="tft_lite_daily_qqq", model_version="v1", dataset_hash="d" * 64,
+    _sqlite_register(
+        reg,
+        model_name="tft_lite_daily_qqq",
+        model_version="v1",
+        dataset_hash="d" * 64,
         report_json={"tft_lite_daily_qqq": {"coverage_80": 0.55, "mae": 0.012}},
-        artifact_uri="local://z", git_sha="feedface")
+        artifact_uri="local://z",
+        git_sha="feedface",
+    )
     app = create_app(registry=reg)
     client = TestClient(app)
     r = client.get("/latest")
@@ -136,10 +164,15 @@ def test_variable_importance_empty_when_absent() -> None:
     # helen D17: gracefully empty (200 + empty array) instead of 404 when the
     # trainer has not yet exported VSN weights. Panel already handles empty.
     reg = _sqlite_registry()
-    _sqlite_register(reg,
-        model_name="tft_lite_daily_qqq", model_version="v1", dataset_hash="e" * 64,
+    _sqlite_register(
+        reg,
+        model_name="tft_lite_daily_qqq",
+        model_version="v1",
+        dataset_hash="e" * 64,
         report_json={"tft_lite_daily_qqq": {"coverage_80": 0.78}},
-        artifact_uri="local://z", git_sha="feedface")
+        artifact_uri="local://z",
+        git_sha="feedface",
+    )
     client = TestClient(create_app(registry=reg))
     r = client.get("/variable-importance")
     assert r.status_code == 200
@@ -150,13 +183,21 @@ def test_variable_importance_empty_when_absent() -> None:
 
 def test_variable_importance_returns_weights_when_present() -> None:
     reg = _sqlite_registry()
-    _sqlite_register(reg,
-        model_name="tft_lite_daily_qqq", model_version="v2", dataset_hash="f" * 64,
-        report_json={"tft_lite_daily_qqq": {"coverage_80": 0.78},
-                     "variable_importance": [
-                         {"feature": "SPY_close_lag1", "weight": 0.42},
-                         {"feature": "QQQ_volume_lag1", "weight": 0.18}]},
-        artifact_uri="local://z", git_sha="deadbeef")
+    _sqlite_register(
+        reg,
+        model_name="tft_lite_daily_qqq",
+        model_version="v2",
+        dataset_hash="f" * 64,
+        report_json={
+            "tft_lite_daily_qqq": {"coverage_80": 0.78},
+            "variable_importance": [
+                {"feature": "SPY_close_lag1", "weight": 0.42},
+                {"feature": "QQQ_volume_lag1", "weight": 0.18},
+            ],
+        },
+        artifact_uri="local://z",
+        git_sha="deadbeef",
+    )
     client = TestClient(create_app(registry=reg))
     r = client.get("/variable-importance")
     assert r.status_code == 200

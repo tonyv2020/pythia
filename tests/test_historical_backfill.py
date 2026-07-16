@@ -25,13 +25,12 @@ from pythia.data.historical import (
 
 # --- fixtures -------------------------------------------------------------
 
+
 def _yf_like_frame(dates: list[date], base: float) -> pd.DataFrame:
     """Mimic a yfinance single-ticker download: DatetimeIndex named 'Date',
     a (measure, ticker) MultiIndex on columns, capitalised measure names."""
     idx = pd.DatetimeIndex([pd.Timestamp(d) for d in dates], name="Date")
-    cols = pd.MultiIndex.from_product(
-        [["Open", "High", "Low", "Close", "Volume"], ["QQQ"]]
-    )
+    cols = pd.MultiIndex.from_product([["Open", "High", "Low", "Close", "Volume"], ["QQQ"]])
     data = {
         ("Open", "QQQ"): [base + i for i in range(len(dates))],
         ("High", "QQQ"): [base + i + 1 for i in range(len(dates))],
@@ -45,10 +44,12 @@ def _yf_like_frame(dates: list[date], base: float) -> pd.DataFrame:
 def _fake_provider(frames_by_symbol: dict[str, pd.DataFrame]):
     def provider(symbol, start, end, adjust):
         return frames_by_symbol.get(symbol, pd.DataFrame())
+
     return provider
 
 
 # --- normalization --------------------------------------------------------
+
 
 def test_normalize_handles_yfinance_multiindex():
     raw = _yf_like_frame([date(2024, 1, 2), date(2024, 1, 3)], base=400.0)
@@ -60,9 +61,14 @@ def test_normalize_handles_yfinance_multiindex():
 
 def test_normalize_drops_rows_without_close():
     raw = pd.DataFrame(
-        {"Date": [pd.Timestamp("2024-01-02"), pd.Timestamp("2024-01-03")],
-         "Open": [1.0, 2.0], "High": [1.0, 2.0], "Low": [1.0, 2.0],
-         "Close": [1.0, None], "Volume": [10, 20]}
+        {
+            "Date": [pd.Timestamp("2024-01-02"), pd.Timestamp("2024-01-03")],
+            "Open": [1.0, 2.0],
+            "High": [1.0, 2.0],
+            "Low": [1.0, 2.0],
+            "Close": [1.0, None],
+            "Volume": [10, 20],
+        }
     )
     out = _normalize_provider_frame(raw)
     assert len(out) == 1
@@ -76,6 +82,7 @@ def test_normalize_missing_column_raises():
 
 
 # --- fetch ----------------------------------------------------------------
+
 
 def test_fetch_returns_long_daily_columns_and_skips_unavailable():
     qqq = _yf_like_frame([date(2024, 1, 2), date(2024, 1, 3)], base=400.0)
@@ -93,6 +100,7 @@ def test_fetch_provider_exception_is_swallowed_per_symbol():
         if symbol == "SPY":
             raise RuntimeError("network down")
         return _yf_like_frame([date(2024, 1, 2)], base=400.0)
+
     out = fetch_historical_daily_bars(
         ["QQQ", "SPY"], date(2024, 1, 1), date(2024, 1, 5), provider_fn=boom
     )
@@ -101,22 +109,30 @@ def test_fetch_provider_exception_is_swallowed_per_symbol():
 
 # --- combine --------------------------------------------------------------
 
+
 def _long(symbol, rows):
     return pd.DataFrame(
-        [{"symbol": symbol, "date": d, "open": c, "high": c, "low": c,
-          "close": c, "volume": v} for d, c, v in rows]
+        [
+            {"symbol": symbol, "date": d, "open": c, "high": c, "low": c, "close": c, "volume": v}
+            for d, c, v in rows
+        ]
     )
 
 
 def test_combine_prefers_raptor_on_overlap():
     raptor = _long("QQQ", [(date(2026, 6, 10), 500.0, 9)])
-    hist = _long("QQQ", [(date(2026, 6, 10), 111.0, 1),   # overlap → raptor wins
-                         (date(2024, 1, 2), 400.0, 1)])    # old → historical fills
+    hist = _long(
+        "QQQ",
+        [
+            (date(2026, 6, 10), 111.0, 1),  # overlap → raptor wins
+            (date(2024, 1, 2), 400.0, 1),
+        ],
+    )  # old → historical fills
     out = combine_daily(raptor, hist, prefer="raptor")
     assert len(out) == 2
     overlap = out[out["date"] == date(2026, 6, 10)]["close"].iloc[0]
     old = out[out["date"] == date(2024, 1, 2)]["close"].iloc[0]
-    assert overlap == 500.0   # raptor's value, not historical's 111.0
+    assert overlap == 500.0  # raptor's value, not historical's 111.0
     assert old == 400.0
 
 
@@ -141,13 +157,22 @@ def test_combine_bad_prefer_raises():
 
 # --- assemble_dataset: schema preservation --------------------------------
 
+
 def _raptor_intraday(symbols, dates):
     """Minimal intraday frame the assembler's daily roll-up understands."""
     rows = []
     for s in symbols:
         for i, d in enumerate(dates):
-            rows.append({"symbol": s, "date": d, "time": "15:59:00",
-                         "price": 500.0 + i, "volume": 100, "open_price": 499.0 + i})
+            rows.append(
+                {
+                    "symbol": s,
+                    "date": d,
+                    "time": "15:59:00",
+                    "price": 500.0 + i,
+                    "volume": 100,
+                    "open_price": 499.0 + i,
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -158,8 +183,7 @@ def test_backfill_preserves_wide_schema_and_adds_rows(monkeypatch):
     """
     recent = [date(2026, 6, 8), date(2026, 6, 9), date(2026, 6, 10)]
     raptor_intraday = _raptor_intraday(["QQQ", "SPY"], recent)
-    monkeypatch.setattr(assembler, "_fetch_intraday",
-                        lambda *a, **k: raptor_intraday)
+    monkeypatch.setattr(assembler, "_fetch_intraday", lambda *a, **k: raptor_intraday)
 
     hist = {
         "QQQ": _yf_like_frame([date(2024, 1, 2), date(2024, 1, 3)], base=400.0),
@@ -167,11 +191,17 @@ def test_backfill_preserves_wide_schema_and_adds_rows(monkeypatch):
     }
     provider = _fake_provider(hist)
 
-    base = assemble_dataset(date(2026, 6, 1), date(2026, 6, 10),
-                            engine=object(), symbols=["QQQ", "SPY"])
-    fat = assemble_dataset(date(2026, 6, 1), date(2026, 6, 10), engine=object(),
-                           symbols=["QQQ", "SPY"], historical_start=date(2024, 1, 1),
-                           historical_provider_fn=provider)
+    base = assemble_dataset(
+        date(2026, 6, 1), date(2026, 6, 10), engine=object(), symbols=["QQQ", "SPY"]
+    )
+    fat = assemble_dataset(
+        date(2026, 6, 1),
+        date(2026, 6, 10),
+        engine=object(),
+        symbols=["QQQ", "SPY"],
+        historical_start=date(2024, 1, 1),
+        historical_provider_fn=provider,
+    )
 
     # Identical column schema — backfill did not alter the interface.
     assert list(base.daily.columns) == list(fat.daily.columns)
@@ -185,9 +215,9 @@ def test_backfill_preserves_wide_schema_and_adds_rows(monkeypatch):
 
 def test_backfill_off_by_default_is_unchanged(monkeypatch):
     recent = [date(2026, 6, 9), date(2026, 6, 10)]
-    monkeypatch.setattr(assembler, "_fetch_intraday",
-                        lambda *a, **k: _raptor_intraday(["QQQ"], recent))
-    res = assemble_dataset(date(2026, 6, 1), date(2026, 6, 10),
-                           engine=object(), symbols=["QQQ"])
+    monkeypatch.setattr(
+        assembler, "_fetch_intraday", lambda *a, **k: _raptor_intraday(["QQQ"], recent)
+    )
+    res = assemble_dataset(date(2026, 6, 1), date(2026, 6, 10), engine=object(), symbols=["QQQ"])
     assert res.symbols_backfilled == ()
     assert "QQQ_close" in res.daily.columns

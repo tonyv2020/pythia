@@ -34,13 +34,13 @@ class PythiaWindowDataset(Dataset):
         valid_flag = mask.values
         rolling_ok = np.zeros_like(valid_flag)
         for i in range(encoder_length - 1, len(valid_flag)):
-            rolling_ok[i] = valid_flag[i - encoder_length + 1: i + 1].all()
+            rolling_ok[i] = valid_flag[i - encoder_length + 1 : i + 1].all()
 
-        self.features = f.values                        # (N, F)
-        self.targets = t.values                         # (N, D)
+        self.features = f.values  # (N, F)
+        self.targets = t.values  # (N, D)
         self.anchor_idx = np.where(rolling_ok)[0]
         self.encoder_length = encoder_length
-        self.index = f.index                            # for external referencing
+        self.index = f.index  # for external referencing
         self.feature_names: list[str] = list(f.columns)
         self.target_names: list[str] = list(t.columns)
 
@@ -49,8 +49,8 @@ class PythiaWindowDataset(Dataset):
 
     def __getitem__(self, i: int) -> tuple[torch.Tensor, torch.Tensor]:
         pos = int(self.anchor_idx[i])
-        x = self.features[pos - self.encoder_length + 1: pos + 1].copy()  # (T, F)
-        y = self.targets[pos].copy()                                       # (D,)
+        x = self.features[pos - self.encoder_length + 1 : pos + 1].copy()  # (T, F)
+        y = self.targets[pos].copy()  # (D,)
         return torch.from_numpy(x), torch.from_numpy(y)
 
     def anchor_timestamp(self, i: int) -> pd.Timestamp:

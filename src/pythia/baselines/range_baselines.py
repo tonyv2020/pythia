@@ -31,8 +31,9 @@ def _range_series(frame: pd.DataFrame, high_col: str, low_col: str) -> pd.Series
 class LastRange(Model):
     """Persistence: forecast every eval row at the last train realized-range."""
 
-    def __init__(self, high_col: str, low_col: str, min_train_rows: int = 20,
-                 sigma_floor: float = 1e-9) -> None:
+    def __init__(
+        self, high_col: str, low_col: str, min_train_rows: int = 20, sigma_floor: float = 1e-9
+    ) -> None:
         self.high_col = high_col
         self.low_col = low_col
         self.min_train_rows = min_train_rows
@@ -59,8 +60,14 @@ class LastRange(Model):
 class RollingRange(Model):
     """Rolling-window mean±std of realized-range."""
 
-    def __init__(self, high_col: str, low_col: str, window: int = 20,
-                 min_train_rows: int = 20, sigma_floor: float = 1e-9) -> None:
+    def __init__(
+        self,
+        high_col: str,
+        low_col: str,
+        window: int = 20,
+        min_train_rows: int = 20,
+        sigma_floor: float = 1e-9,
+    ) -> None:
         self.high_col = high_col
         self.low_col = low_col
         self.window = window
@@ -73,10 +80,9 @@ class RollingRange(Model):
         r = _range_series(train, self.high_col, self.low_col)
         if len(r) < self.min_train_rows:
             raise RuntimeError(f"RollingRange needs >= {self.min_train_rows} rows, got {len(r)}")
-        tail = r.iloc[-self.window:]
+        tail = r.iloc[-self.window :]
         self._mean = float(tail.mean())
-        self._sigma = max(float(tail.std(ddof=1)) if len(tail) > 1 else 0.0,
-                          self.sigma_floor)
+        self._sigma = max(float(tail.std(ddof=1)) if len(tail) > 1 else 0.0, self.sigma_floor)
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
         assert self._mean is not None

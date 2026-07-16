@@ -28,8 +28,7 @@ def _multi_session_bars(days: int = 5, bars_per_day: int = 39):
 
 
 def _pmove(idx):
-    return pd.Series([0.05 + 0.4 * (((i * 13) % 9) / 9.0) for i in range(len(idx))],
-                     index=idx)
+    return pd.Series([0.05 + 0.4 * (((i * 13) % 9) / 9.0) for i in range(len(idx))], index=idx)
 
 
 def _tilt(idx):
@@ -50,8 +49,13 @@ def test_forward_session_mask_excludes_end_of_session_bars():
 def test_intraday_backtest_scores_all_four_baselines():
     df, idx = _multi_session_bars(days=6, bars_per_day=39)
     reports = run_intraday_backtest(
-        df, "QQQ_close", p_move=_pmove(idx), tilt=_tilt(idx),
-        horizon=3, initial_train=80, eval_size=39,
+        df,
+        "QQQ_close",
+        p_move=_pmove(idx),
+        tilt=_tilt(idx),
+        horizon=3,
+        initial_train=80,
+        eval_size=39,
     )
     for name in ("random_walk", "last_return", "raptor_p_move", "raptor_direction"):
         assert name in reports, name
@@ -66,7 +70,12 @@ def test_intraday_backtest_scores_all_four_baselines():
 def test_intraday_backtest_without_raptor_histories_scores_only_price_baselines():
     df, idx = _multi_session_bars(days=6, bars_per_day=39)
     reports = run_intraday_backtest(
-        df, "QQQ_close", p_move=None, tilt=None,
-        horizon=3, initial_train=80, eval_size=39,
+        df,
+        "QQQ_close",
+        p_move=None,
+        tilt=None,
+        horizon=3,
+        initial_train=80,
+        eval_size=39,
     )
     assert set(reports) == {"random_walk", "last_return"}

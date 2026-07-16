@@ -109,16 +109,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--start", type=_parse_date, required=True)
     p.add_argument("--end", type=_parse_date, required=True)
     p.add_argument("--symbol", type=str, default="QQQ")
-    p.add_argument("--scan-model", type=str, default="conformal_rw",
-                   choices=["conformal_rw", "random_walk"])
-    p.add_argument("--historical", type=str, default="yfinance",
-                   choices=["yfinance", "stooq", "none"])
+    p.add_argument(
+        "--scan-model", type=str, default="conformal_rw", choices=["conformal_rw", "random_walk"]
+    )
+    p.add_argument(
+        "--historical", type=str, default="yfinance", choices=["yfinance", "stooq", "none"]
+    )
     p.add_argument("--historical-start", type=_parse_date, default=None)
     p.add_argument("--initial-train", type=int, default=252)
     p.add_argument("--eval-size", type=int, default=63)
     p.add_argument("--window", type=int, default=20)
-    p.add_argument("--dry-run", action="store_true",
-                   help="compute + print; no DB writes")
+    p.add_argument("--dry-run", action="store_true", help="compute + print; no DB writes")
     args = p.parse_args(argv)
 
     symbol = args.symbol.upper()
@@ -126,8 +127,11 @@ def main(argv: list[str] | None = None) -> int:
     provider = None if args.historical == "none" else args.historical
 
     result = assemble_dataset(
-        args.start, args.end, symbols=None,
-        historical_provider=provider, historical_start=args.historical_start,
+        args.start,
+        args.end,
+        symbols=None,
+        historical_provider=provider,
+        historical_start=args.historical_start,
     )
     wide = result.daily
 
@@ -136,9 +140,13 @@ def main(argv: list[str] | None = None) -> int:
     version = rec.model_version if rec is not None else "unregistered"
 
     scan = run_breakout_scan(
-        wide, _factory(args.scan_model, target_col),
-        target_col=target_col, symbol=symbol, model_version=version,
-        initial_train=args.initial_train, eval_size=args.eval_size,
+        wide,
+        _factory(args.scan_model, target_col),
+        target_col=target_col,
+        symbol=symbol,
+        model_version=version,
+        initial_train=args.initial_train,
+        eval_size=args.eval_size,
     )
     block = build_breakouts_response(scan, window=args.window)
     block["scan_model"] = args.scan_model  # never misrepresent the source
