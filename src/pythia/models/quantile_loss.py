@@ -25,6 +25,7 @@ def multi_quantile_pinball(
     quantiles: torch.Tensor,  # (K,)
     crossing_penalty: float = 0.1,
 ) -> torch.Tensor:
+    """Multi-quantile pinball loss with a penalty that discourages quantile crossing."""
     if y.dim() == 1:
         y = y.unsqueeze(1)
     diff = y - q_hat  # (B, K)

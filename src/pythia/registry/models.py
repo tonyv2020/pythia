@@ -47,6 +47,7 @@ def _coerce_ts(v: object) -> datetime:
 
 @dataclass(frozen=True)
 class ModelRecord:
+    """One registered model version: identity + metadata + the walk-forward report JSON."""
     id: int
     model_name: str
     model_version: str
@@ -81,6 +82,7 @@ def current_git_sha(repo_root: Path | None = None) -> str:
 
 
 class ModelRegistry:
+    """Postgres-backed store of trained model versions and their walk-forward reports (D3)."""
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
         self._ensured = False
@@ -174,6 +176,7 @@ class ModelRegistry:
         return int(row.id)
 
     def latest(self, model_name: str) -> ModelRecord | None:
+        """Most recent registered record for ``model_name`` by trained_at, or None."""
         self.ensure_schema()
         q = text(
             """
@@ -244,4 +247,5 @@ def _registry_dsn() -> str:
 
 
 def get_default_registry() -> ModelRegistry:
+    """ModelRegistry bound to the default DSN (PYTHIA_REGISTRY_DSN / PYTHIA_DB_DSN / in-cluster default)."""
     return ModelRegistry(get_engine(_registry_dsn()))

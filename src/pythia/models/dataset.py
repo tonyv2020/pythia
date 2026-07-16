@@ -18,6 +18,7 @@ from torch.utils.data import Dataset
 
 
 class PythiaWindowDataset(Dataset):
+    """Torch Dataset of (encoder-window features, target) pairs sliced from the assembled frame."""
     def __init__(
         self,
         features: pd.DataFrame,
@@ -54,4 +55,5 @@ class PythiaWindowDataset(Dataset):
         return torch.from_numpy(x), torch.from_numpy(y)
 
     def anchor_timestamp(self, i: int) -> pd.Timestamp:
+        """Timestamp of the forecast (target) row for training example ``i``."""
         return self.index[int(self.anchor_idx[i])]

@@ -14,5 +14,6 @@ from ..config import DEFAULT_DB_DSN
 
 
 def get_engine(dsn: str | None = None) -> Engine:
+    """SQLAlchemy engine for the pythia Postgres (``dsn`` or PYTHIA_DB_DSN env, else the in-cluster default), pre-ping pooled."""
     dsn = dsn or os.environ.get("PYTHIA_DB_DSN") or DEFAULT_DB_DSN
     return create_engine(dsn, pool_pre_ping=True, future=True)

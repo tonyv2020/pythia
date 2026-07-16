@@ -24,6 +24,7 @@ from .adapter import TFTLiteModel
 
 @dataclass
 class IntradayTFTLiteModel(TFTLiteModel):
+    """TFT-lite variant trained on the forward h-bar return (P3 intraday horizon=3), fixing the 1-bar/3-bar target mismatch."""
     horizon: int = 3
 
     def _build_targets(self, frame: pd.DataFrame) -> pd.DataFrame:

@@ -42,9 +42,11 @@ class RaptorPMoveStub(Model):
         self.target_col = target_col
 
     def fit(self, train: pd.DataFrame) -> None:
+        """No-op fit — the stub ignores training and emits a fixed placeholder forecast."""
         return None
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
+        """Zero-mean unit-sigma placeholder forecast (used only where the real p_move feed is absent)."""
         raise NotImplementedError(
             "raptor p_move history not provided; use RaptorPMove(p_move=...) "
             "with a staging.qqq_pmove snapshot, or keep this stub as a planned "
@@ -100,6 +102,7 @@ class RaptorPMove(Model):
         self._fitted: bool = False
 
     def fit(self, train: pd.DataFrame) -> None:
+        """Calibrate the p_move->sigma scale on the train window (dropping/flooring near-zero p_move); degrade to RW-style sigma if too few usable rows."""
         r = _forward_log_returns(train[self.target_col], self.horizon)
         # Flat RW-style σ from ALL train forward-returns — the graceful fallback
         # when p_move is too sparse to calibrate in this window.
@@ -127,6 +130,7 @@ class RaptorPMove(Model):
         self._fitted = True
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
+        """Zero-mean forecast with sigma = calibrated scale * p_move per bar (RW-style constant where p_move is missing)."""
         assert self._fitted, "RaptorPMove not fit"
         if self._c is None:
             # Degraded: flat σ for every eval bar (no p_move modulation).

@@ -43,6 +43,7 @@ class TFTLiteConfig:
     quantiles: tuple[float, ...] = (0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95)
 
     def n_quantiles(self) -> int:
+        """Number of forecast quantiles the model emits."""
         return len(self.quantiles)
 
 
@@ -69,6 +70,7 @@ class VariableSelectionNetwork(nn.Module):
 
 
 class TFTLite(nn.Module):
+    """Minimal Temporal Fusion Transformer: variable selection + GRU encoder + multi-quantile heads."""
     def __init__(self, cfg: TFTLiteConfig) -> None:
         super().__init__()
         self.cfg = cfg

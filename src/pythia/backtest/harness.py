@@ -53,6 +53,7 @@ class Report:
     attention_weights: list[float] | None = None
 
     def as_dict(self) -> dict:
+        """Return the report as a plain dict (per-split rows copied) for JSON registry storage."""
         d = self.__dict__.copy()
         d["per_split"] = list(self.per_split)  # already dicts
         return d

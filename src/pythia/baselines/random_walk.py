@@ -23,6 +23,7 @@ class RandomWalk(Model):
         self._sigma: float | None = None
 
     def fit(self, train: pd.DataFrame) -> None:
+        """Estimate sigma as the stdev of train log-returns (floored > 0); raise if too few rows."""
         px = train[self.target_col].astype(float)
         r = np.log(px / px.shift(1)).dropna()
         if len(r) < self.min_train_rows:
@@ -34,6 +35,7 @@ class RandomWalk(Model):
         self._sigma = max(s, 1e-9)
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
+        """Zero-mean, constant-sigma Gaussian forecast across ``eval_index``."""
         assert self._sigma is not None, "RandomWalk not fit"
         n = len(eval_index)
         return ProbForecast(

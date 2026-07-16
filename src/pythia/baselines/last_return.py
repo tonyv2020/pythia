@@ -18,6 +18,7 @@ from ..backtest.protocols import Model, ProbForecast
 
 
 class LastReturn(Model):
+    """Persistence baseline: forecast mean = last observed train log-return, sigma = train-return stdev."""
     def __init__(self, target_col: str, min_train_rows: int = 30) -> None:
         self.target_col = target_col
         self.min_train_rows = min_train_rows
@@ -25,6 +26,7 @@ class LastReturn(Model):
         self._sigma: float | None = None
 
     def fit(self, train: pd.DataFrame) -> None:
+        """Set mean to the last train log-return and sigma to the train-return stdev; raise if too few rows."""
         px = train[self.target_col].astype(float)
         r = np.log(px / px.shift(1)).dropna()
         if len(r) < self.min_train_rows:
@@ -35,6 +37,7 @@ class LastReturn(Model):
         self._sigma = max(float(r.std(ddof=1)), 1e-9)
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
+        """Constant persisted-last-return (mean, sigma) across ``eval_index``."""
         assert self._mean is not None and self._sigma is not None, "LastReturn not fit"
         n = len(eval_index)
         return ProbForecast(
