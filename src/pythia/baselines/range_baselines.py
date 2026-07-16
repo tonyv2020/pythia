@@ -25,6 +25,7 @@ from ..features.targets import realized_range_target
 
 
 def _range_series(frame: pd.DataFrame, high_col: str, low_col: str) -> pd.Series:
+    """Compute realized-range log(high/low) for each row of `frame`, dropping NaNs."""
     return realized_range_target(frame[high_col], frame[low_col]).dropna()
 
 
@@ -42,6 +43,7 @@ class LastRange(Model):
         self._sigma: float | None = None
 
     def fit(self, train: pd.DataFrame) -> None:
+        """Snap mean to the last train realized-range; sigma to the train range std (floored)."""
         r = _range_series(train, self.high_col, self.low_col)
         if len(r) < self.min_train_rows:
             raise RuntimeError(f"LastRange needs >= {self.min_train_rows} rows, got {len(r)}")
@@ -49,6 +51,7 @@ class LastRange(Model):
         self._sigma = max(float(r.std(ddof=1)), self.sigma_floor)
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
+        """Broadcast the persistence (mean, sigma) across the eval index."""
         assert self._mean is not None
         n = len(eval_index)
         return ProbForecast(

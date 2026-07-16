@@ -43,6 +43,7 @@ class TFTLiteConfig:
     quantiles: tuple[float, ...] = (0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95)
 
     def n_quantiles(self) -> int:
+        """Number of predicted quantiles (len of quantiles config)."""
         return len(self.quantiles)
 
 
@@ -69,7 +70,10 @@ class VariableSelectionNetwork(nn.Module):
 
 
 class TFTLite(nn.Module):
+    """TFT-lite core module: encoder GRU + variable-selection + multi-quantile head."""
+
     def __init__(self, cfg: TFTLiteConfig) -> None:
+        """Wire encoder + variable-selection + quantile head from a TFTLiteConfig."""
         super().__init__()
         self.cfg = cfg
         self.vsn = VariableSelectionNetwork(cfg.n_features, cfg.hidden_size, cfg.dropout)

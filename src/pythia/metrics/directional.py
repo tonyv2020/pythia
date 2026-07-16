@@ -10,6 +10,7 @@ from numpy.typing import ArrayLike
 
 
 def directional_hit_rate(y_true: ArrayLike, y_pred: ArrayLike) -> float:
+    """Fraction of eval rows where sign(forecast_mean) == sign(realised) — honest binary skill."""
     yt = np.asarray(y_true, dtype=float)
     yp = np.asarray(y_pred, dtype=float)
     if yt.shape != yp.shape:

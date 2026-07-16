@@ -17,6 +17,7 @@ from scipy.stats import norm  # type: ignore[import-not-found]
 
 
 def crps_normal(y_true: ArrayLike, mean: ArrayLike, sigma: ArrayLike) -> float:
+    """Closed-form CRPS for a Normal(mean, sigma) forecast against realised y — vectorised."""
     yt = np.asarray(y_true, dtype=float)
     mu = np.asarray(mean, dtype=float)
     sd = np.asarray(sigma, dtype=float)

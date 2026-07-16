@@ -24,10 +24,13 @@ _DIRECTION_SQL = "SELECT date, bar_time, p_up, p_dn FROM staging.qqq_direction"
 
 
 def _bar_ts(date_txt: str, bar_time_txt: str) -> pd.Timestamp:
+    """Convert a (date, bar_time) pair into a UTC bar timestamp for indexing p_move rows."""
     return pd.to_datetime(f"{date_txt} {bar_time_txt}")
 
 
 def _default_rows_fn(dsn: str | None) -> RowsFn:
+    """Return a callable that fetches raptor p_move rows for a date range from the default DSN."""
+
     def rows_fn(sql: str) -> Iterable[tuple]:
         # Lazy import; only needed on the live (achilles) path.
         from sqlalchemy import text

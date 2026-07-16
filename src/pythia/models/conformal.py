@@ -58,6 +58,7 @@ class ConformalScaledModel(Model):
     _floor: float = field(default=1e-9, init=False)
 
     def fit(self, train: pd.DataFrame) -> None:
+        """Fit the wrapped model, then calibrate a conformal scaling factor from held-out train residuals."""
         self.base.fit(train)
         # The SAME target the harness scores for this model (price return by
         # default; a range/other target via target_fn — P5a).
@@ -87,6 +88,7 @@ class ConformalScaledModel(Model):
         self._s = max(q / z, self.sigma_floor_abs) if q > 0 else 1.0
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
+        """Emit the wrapped model's forecast with sigma scaled by the conformal calibration factor."""
         fc = self.base.predict(eval_index)
         sigma = np.maximum(fc.sigma.to_numpy(), self._floor)
         return ProbForecast(

@@ -69,6 +69,7 @@ def _build_notes(tft: dict, rw: dict) -> list[str]:
 
 
 def create_app(registry: ModelRegistry | None = None) -> FastAPI:
+    """FastAPI app factory: wires registry + routes for /health, /forecast, /events."""
     app = FastAPI(
         title="pythia",
         version="0.1.0",

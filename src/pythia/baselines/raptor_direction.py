@@ -29,6 +29,8 @@ from .raptor_p_move import _forward_log_returns
 
 
 class RaptorDirection(Model):
+    """Raptor directional baseline: mean = beta*tilt(p_up-p_dn), sigma = train residual std (constant)."""
+
     def __init__(
         self,
         target_col: str,
@@ -48,6 +50,7 @@ class RaptorDirection(Model):
         self._sigma: float | None = None
 
     def fit(self, train: pd.DataFrame) -> None:
+        """OLS-fit beta of realized horizon-return on tilt (no intercept); sigma = residual std."""
         r = _forward_log_returns(train[self.target_col], self.horizon)
         tilt = self.tilt.reindex(train.index)
         df = pd.concat([r.rename("r"), tilt.rename("tilt")], axis=1).dropna()
@@ -74,6 +77,7 @@ class RaptorDirection(Model):
         self._sigma = max(s, self.sigma_floor)
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
+        """Emit mean = beta*tilt at each eval bar; sigma = constant residual std from fit."""
         assert self._beta is not None and self._sigma is not None, "not fit"
         tilt = self.tilt.reindex(eval_index).fillna(0.0)
         mean = self._beta * tilt.to_numpy()

@@ -30,6 +30,7 @@ class WalkForwardSplit:
     eval_end: pd.Timestamp  # exclusive
 
     def __post_init__(self) -> None:
+        """Validate the split window boundaries (train_end < eval_end and non-empty ranges)."""
         if not (self.train_start < self.train_end == self.eval_start < self.eval_end):
             raise ValueError(
                 f"invalid split ordering: "

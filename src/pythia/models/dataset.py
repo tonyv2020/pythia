@@ -18,6 +18,8 @@ from torch.utils.data import Dataset
 
 
 class PythiaWindowDataset(Dataset):
+    """PyTorch Dataset yielding (encoder-window, target) tensors for the TFT-lite family."""
+
     def __init__(
         self,
         features: pd.DataFrame,
@@ -45,13 +47,16 @@ class PythiaWindowDataset(Dataset):
         self.target_names: list[str] = list(t.columns)
 
     def __len__(self) -> int:
+        """Number of full encoder-length windows available in the frame."""
         return len(self.anchor_idx)
 
     def __getitem__(self, i: int) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return the (encoder tensor, target tensor) pair for the i-th window."""
         pos = int(self.anchor_idx[i])
         x = self.features[pos - self.encoder_length + 1 : pos + 1].copy()  # (T, F)
         y = self.targets[pos].copy()  # (D,)
         return torch.from_numpy(x), torch.from_numpy(y)
 
     def anchor_timestamp(self, i: int) -> pd.Timestamp:
+        """Return the anchor (target) timestamp for the i-th window (last bar of the encoder)."""
         return self.index[int(self.anchor_idx[i])]

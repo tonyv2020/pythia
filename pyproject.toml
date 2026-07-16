@@ -31,3 +31,21 @@ pythonpath = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-semiprivate = true
+ignore-private = true
+ignore-nested-functions = true
+ignore-property-decorators = true
+# Ratchet plan (helen 2026-07-16, docstring ratchet epic):
+#   phase 1: fail-under = 60  (this PR — actual 85.2%)
+#   phase 2: fail-under = 70
+#   phase 3: fail-under = 80
+#   phase 4: fail-under = 90
+# Bump each phase only after "actual" clears the new floor.
+fail-under = 60
+exclude = ["tests", "scripts", "docker"]
+verbose = 1

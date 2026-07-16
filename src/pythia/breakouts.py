@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS pythia_breakouts (
 
 @dataclass(frozen=True)
 class BreakoutRate:
+    """Breakout-rate row for a single lookback window (lifetime or rolling): count + hit-rate + timestamp."""
+
     breakout_rate: float
     expected: float
     n: int

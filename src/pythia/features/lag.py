@@ -58,6 +58,7 @@ class LagPolicy:
     targets: frozenset[str]
 
     def __post_init__(self) -> None:
+        """Validate lag config (positive lags, matching lengths); called by dataclass init."""
         overlap = (
             (self.observed & self.known_future)
             | (self.observed & self.targets)
@@ -67,6 +68,7 @@ class LagPolicy:
             raise ValueError(f"column(s) appear in multiple LagPolicy buckets: {sorted(overlap)}")
 
     def classified(self) -> frozenset[str]:
+        """Split the lag list into per-family buckets (returns, ranges, macro) for feature construction."""
         return self.observed | self.known_future | self.targets
 
 

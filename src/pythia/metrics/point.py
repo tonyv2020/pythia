@@ -7,6 +7,7 @@ from numpy.typing import ArrayLike
 
 
 def _pair(y_true: ArrayLike, y_pred: ArrayLike) -> tuple[np.ndarray, np.ndarray]:
+    """Align y_true and y_pred by common index; drop NaNs; return the two aligned Series."""
     yt = np.asarray(y_true, dtype=float)
     yp = np.asarray(y_pred, dtype=float)
     if yt.shape != yp.shape:
@@ -16,6 +17,7 @@ def _pair(y_true: ArrayLike, y_pred: ArrayLike) -> tuple[np.ndarray, np.ndarray]
 
 
 def mae(y_true: ArrayLike, y_pred: ArrayLike) -> float:
+    """Mean absolute error of the point forecast against realised y."""
     yt, yp = _pair(y_true, y_pred)
     if yt.size == 0:
         return float("nan")
@@ -23,6 +25,7 @@ def mae(y_true: ArrayLike, y_pred: ArrayLike) -> float:
 
 
 def rmse(y_true: ArrayLike, y_pred: ArrayLike) -> float:
+    """Root mean squared error of the point forecast against realised y."""
     yt, yp = _pair(y_true, y_pred)
     if yt.size == 0:
         return float("nan")

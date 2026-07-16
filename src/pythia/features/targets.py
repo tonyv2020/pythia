@@ -23,6 +23,7 @@ import pandas as pd
 
 
 def return_target(px: pd.Series) -> pd.Series:
+    """Compute the horizon-h forward log-return target: log(px[t+h]) - log(px[t])."""
     px = px.astype(float).sort_index()
     return np.log(px / px.shift(1)).rename(f"{px.name}_ret" if px.name else "ret")
 

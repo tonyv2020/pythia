@@ -15,6 +15,7 @@ from numpy.typing import ArrayLike
 
 
 def pinball_loss(y_true: ArrayLike, q_hat: ArrayLike, q: float) -> float:
+    """Pinball loss at quantile `q` — the tilted-absolute-error scoring rule for a single quantile forecast."""
     if not 0.0 < q < 1.0:
         raise ValueError("q must be in (0, 1)")
     yt = np.asarray(y_true, dtype=float)

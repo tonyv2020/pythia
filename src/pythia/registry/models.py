@@ -47,6 +47,8 @@ def _coerce_ts(v: object) -> datetime:
 
 @dataclass(frozen=True)
 class ModelRecord:
+    """One row in the model registry: model name/version/timestamps + serialized artefact URI."""
+
     id: int
     model_name: str
     model_version: str
@@ -81,7 +83,10 @@ def current_git_sha(repo_root: Path | None = None) -> str:
 
 
 class ModelRegistry:
+    """Postgres-backed model registry — records a fit's ProvenBy row and hands out latest-by-name."""
+
     def __init__(self, engine: Engine) -> None:
+        """Bind the registry to a SQLAlchemy engine; connections come from `engine` on demand."""
         self.engine = engine
         self._ensured = False
 
@@ -174,6 +179,7 @@ class ModelRegistry:
         return int(row.id)
 
     def latest(self, model_name: str) -> ModelRecord | None:
+        """Return the newest ModelRecord for `model_name`, or None if the registry has no rows yet."""
         self.ensure_schema()
         q = text(
             """
@@ -238,10 +244,12 @@ class ModelRegistry:
 
 
 def _registry_dsn() -> str:
+    """Read the registry DSN from PYTHIA_REGISTRY_DSN env; falls back to the default when unset."""
     return (
         os.environ.get("PYTHIA_REGISTRY_DSN") or os.environ.get("PYTHIA_DB_DSN") or DEFAULT_DB_DSN
     )
 
 
 def get_default_registry() -> ModelRegistry:
+    """Return the process-wide default ModelRegistry (created lazily on first call)."""
     return ModelRegistry(get_engine(_registry_dsn()))

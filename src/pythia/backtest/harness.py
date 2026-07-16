@@ -53,6 +53,7 @@ class Report:
     attention_weights: list[float] | None = None
 
     def as_dict(self) -> dict:
+        """Return a plain-dict copy of the report — for JSON serialisation and per-split logging."""
         d = self.__dict__.copy()
         d["per_split"] = list(self.per_split)  # already dicts
         return d
@@ -213,6 +214,7 @@ def run_backtest(
 
 
 def _aggregate(per_split_records: dict[str, list[dict]], rw_name: str) -> dict[str, Report]:
+    """Aggregate per-split metrics into a single Report row across all splits for one model."""
     reports: dict[str, Report] = {}
 
     # First pass: raw metrics per model. Second pass adds MAE-skill vs RW.
