@@ -67,6 +67,7 @@ class LagPolicy:
             raise ValueError(f"column(s) appear in multiple LagPolicy buckets: {sorted(overlap)}")
 
     def classified(self) -> frozenset[str]:
+        """Union of the observed, known-future, and target column sets — every column the policy accounts for."""
         return self.observed | self.known_future | self.targets
 
 

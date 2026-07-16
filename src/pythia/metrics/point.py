@@ -16,6 +16,7 @@ def _pair(y_true: ArrayLike, y_pred: ArrayLike) -> tuple[np.ndarray, np.ndarray]
 
 
 def mae(y_true: ArrayLike, y_pred: ArrayLike) -> float:
+    """Mean absolute error over finite (y_true, y_pred) pairs; NaN if none."""
     yt, yp = _pair(y_true, y_pred)
     if yt.size == 0:
         return float("nan")
@@ -23,6 +24,7 @@ def mae(y_true: ArrayLike, y_pred: ArrayLike) -> float:
 
 
 def rmse(y_true: ArrayLike, y_pred: ArrayLike) -> float:
+    """Root-mean-square error over finite (y_true, y_pred) pairs; NaN if none."""
     yt, yp = _pair(y_true, y_pred)
     if yt.size == 0:
         return float("nan")

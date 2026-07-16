@@ -105,6 +105,7 @@ class TFTLiteModel:
         return pd.concat([r, rng], axis=1)
 
     def fit(self, train: pd.DataFrame) -> None:
+        """Train the TFT-lite network on the assembled frame (multi-target: return + realized-range heads)."""
         torch.manual_seed(self.seed)
         # Build lag policy from train's columns; targets are the raw price
         # (and high/low if present) — they don't enter the feature matrix.
@@ -194,6 +195,7 @@ class TFTLiteModel:
         self._lag_policy = policy
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
+        """Return the (mean, sigma) forecast for ``eval_index`` from the selected target head."""
         assert self._model is not None, "TFTLiteModel not fit"
         assert self._train_frame is not None
         assert self._lag_policy is not None

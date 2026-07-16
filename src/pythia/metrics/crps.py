@@ -17,6 +17,7 @@ from scipy.stats import norm  # type: ignore[import-not-found]
 
 
 def crps_normal(y_true: ArrayLike, mean: ArrayLike, sigma: ArrayLike) -> float:
+    """Mean CRPS of a Normal(mean, sigma) predictive vs ``y_true`` (closed form; lower is better); non-finite or sigma<=0 rows dropped, NaN if none remain."""
     yt = np.asarray(y_true, dtype=float)
     mu = np.asarray(mean, dtype=float)
     sd = np.asarray(sigma, dtype=float)

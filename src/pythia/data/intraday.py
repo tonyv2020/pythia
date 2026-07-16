@@ -49,6 +49,7 @@ TicksFn = Callable[[Iterable[str], date, date], pd.DataFrame]
 
 @dataclass(frozen=True)
 class IntradayAssemblyResult:
+    """Assembled intraday dataset — the wide bar frame plus the symbols included and missing."""
     bars: pd.DataFrame  # wide, DatetimeIndex (bar timestamp)
     symbols_included: tuple[str, ...]
     symbols_missing: tuple[str, ...]

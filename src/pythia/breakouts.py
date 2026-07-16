@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS pythia_breakouts (
 
 @dataclass(frozen=True)
 class BreakoutRate:
+    """Rolling breach-rate summary: observed P10-P90 breach rate vs the ~20% expected, over ``window`` bars."""
     breakout_rate: float
     expected: float
     n: int

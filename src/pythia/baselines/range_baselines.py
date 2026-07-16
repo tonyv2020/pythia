@@ -42,6 +42,7 @@ class LastRange(Model):
         self._sigma: float | None = None
 
     def fit(self, train: pd.DataFrame) -> None:
+        """Persist the last observed realized range and the train-range stdev as (mean, sigma)."""
         r = _range_series(train, self.high_col, self.low_col)
         if len(r) < self.min_train_rows:
             raise RuntimeError(f"LastRange needs >= {self.min_train_rows} rows, got {len(r)}")
@@ -49,6 +50,7 @@ class LastRange(Model):
         self._sigma = max(float(r.std(ddof=1)), self.sigma_floor)
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
+        """Constant last-range (mean, sigma) across ``eval_index``."""
         assert self._mean is not None
         n = len(eval_index)
         return ProbForecast(
@@ -77,6 +79,7 @@ class RollingRange(Model):
         self._sigma: float | None = None
 
     def fit(self, train: pd.DataFrame) -> None:
+        """Fit the trailing-window mean and stdev of realized range on the train frame."""
         r = _range_series(train, self.high_col, self.low_col)
         if len(r) < self.min_train_rows:
             raise RuntimeError(f"RollingRange needs >= {self.min_train_rows} rows, got {len(r)}")
@@ -85,6 +88,7 @@ class RollingRange(Model):
         self._sigma = max(float(tail.std(ddof=1)) if len(tail) > 1 else 0.0, self.sigma_floor)
 
     def predict(self, eval_index: pd.Index) -> ProbForecast:
+        """Forecast every eval row with the trailing-window range mean and stdev."""
         assert self._mean is not None
         n = len(eval_index)
         return ProbForecast(

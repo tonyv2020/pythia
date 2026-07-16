@@ -23,6 +23,7 @@ import pandas as pd
 
 
 def return_target(px: pd.Series) -> pd.Series:
+    """One-step log return ``log(px_t / px_{t-1})`` as a Series; NaN on the first row."""
     px = px.astype(float).sort_index()
     return np.log(px / px.shift(1)).rename(f"{px.name}_ret" if px.name else "ret")
 

@@ -31,3 +31,25 @@ pythonpath = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.interrogate]
+# Measure docstring coverage on the shipped package's PUBLIC surface only —
+# magic/private/nested/init and property accessors are excluded so the metric
+# reflects the API a reader actually needs documented (matches the portfolio
+# standard set on atlas / raptor / hollywood_gen). scripts/ are operational
+# CLIs and tests/ are self-describing, so both are excluded.
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-semiprivate = true
+ignore-private = true
+ignore-nested-functions = true
+ignore-property-decorators = true
+# Ratchet plan (helen 2026-07-16, docstring-coverage ratchet epic):
+#   phase 1: fail-under = 60  (this PR — actual ~99% on the src/pythia public surface)
+#   phase 2: fail-under = 70
+#   phase 3: fail-under = 80
+#   phase 4: fail-under = 90
+# Bump each phase only after "actual" clears the new floor (ratchet only moves up).
+fail-under = 60
+exclude = ["tests", "scripts", "docs"]
