@@ -42,7 +42,7 @@ def _build_notes(tft: dict, rw: dict) -> list[str]:
             # past). Honest label, not a lie about hitting 0.80.
             notes.append(
                 f"eval cov80 ~{cov_f:.2f}; bands slightly tight — systematic "
-                f"~{gap*100:.0f}pp train->eval drift on daily QQQ."
+                f"~{gap * 100:.0f}pp train->eval drift on daily QQQ."
             )
         else:
             notes.append(
@@ -53,11 +53,13 @@ def _build_notes(tft: dict, rw: dict) -> list[str]:
     if skill is not None:
         s = float(skill)
         if s > 0.02:
-            notes.append(f"MAE-skill vs random-walk: +{100*s:.1f}% (better than RW).")
+            notes.append(f"MAE-skill vs random-walk: +{100 * s:.1f}% (better than RW).")
         elif abs(s) <= 0.05:
-            notes.append(f"MAE-skill vs random-walk: {100*s:+.1f}% (NULL SKILL — indistinguishable from RW).")
+            notes.append(
+                f"MAE-skill vs random-walk: {100 * s:+.1f}% (NULL SKILL — indistinguishable from RW)."
+            )
         else:
-            notes.append(f"MAE-skill vs random-walk: {100*s:+.1f}% (worse than RW).")
+            notes.append(f"MAE-skill vs random-walk: {100 * s:+.1f}% (worse than RW).")
 
     if n_obs or n_splits:
         notes.append(f"Sample: n={n_obs} / {n_splits} walk-forward splits.")
@@ -87,6 +89,7 @@ def create_app(registry: ModelRegistry | None = None) -> FastAPI:
     )
 
     reg = registry
+
     def _reg() -> ModelRegistry:
         nonlocal reg
         if reg is None:

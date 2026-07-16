@@ -41,9 +41,11 @@ def run_intraday_backtest(
     """
     if bars_wide.empty:
         return {}
-    splits = list(expanding_walk_forward(
-        bars_wide.index, initial_train_size=initial_train, eval_size=eval_size
-    ))
+    splits = list(
+        expanding_walk_forward(
+            bars_wide.index, initial_train_size=initial_train, eval_size=eval_size
+        )
+    )
     mask = forward_session_mask(bars_wide, horizon)
 
     factories = {
@@ -51,13 +53,9 @@ def run_intraday_backtest(
         "last_return": lambda: LastReturn(price_col),
     }
     if p_move is not None and not p_move.empty:
-        factories["raptor_p_move"] = lambda: RaptorPMove(
-            price_col, p_move, horizon=horizon
-        )
+        factories["raptor_p_move"] = lambda: RaptorPMove(price_col, p_move, horizon=horizon)
     if tilt is not None and not tilt.empty:
-        factories["raptor_direction"] = lambda: RaptorDirection(
-            price_col, tilt, horizon=horizon
-        )
+        factories["raptor_direction"] = lambda: RaptorDirection(price_col, tilt, horizon=horizon)
     if with_tft:
         # Lazy import: torch only needed on the model path (keeps the baseline
         # path torch-free). Horizon-consistent forward-h target subclass, wrapped
@@ -72,13 +70,17 @@ def run_intraday_backtest(
             if not tft_conformal:
                 return base
             from ..models.conformal import ConformalScaledModel
-            return ConformalScaledModel(
-                base=base, target_col=price_col, horizon=horizon
-            )
+
+            return ConformalScaledModel(base=base, target_col=price_col, horizon=horizon)
 
         factories["tft_lite"] = _make_tft
 
     return run_backtest(
-        bars_wide, price_col, splits, factories,
-        rw_name=rw_name, eval_mask=mask, horizon=horizon,
+        bars_wide,
+        price_col,
+        splits,
+        factories,
+        rw_name=rw_name,
+        eval_mask=mask,
+        horizon=horizon,
     )

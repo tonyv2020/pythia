@@ -23,6 +23,7 @@ unchanged — it only makes the cone honestly-sized. Works on ANY base
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -90,6 +91,5 @@ class ConformalScaledModel(Model):
         sigma = np.maximum(fc.sigma.to_numpy(), self._floor)
         return ProbForecast(
             mean=fc.mean,
-            sigma=pd.Series((self._s * sigma).clip(min=self.sigma_floor_abs),
-                            index=eval_index),
+            sigma=pd.Series((self._s * sigma).clip(min=self.sigma_floor_abs), index=eval_index),
         )

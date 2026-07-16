@@ -54,9 +54,11 @@ def test_eval_mask_reduces_scored_obs():
 def test_eval_mask_callable_form():
     df = _frame()
     splits = _splits(df)
+
     # Callable: keep only rows whose position is a multiple of 3.
     def keep(frame: pd.DataFrame) -> pd.Series:
         return pd.Series(np.arange(len(frame)) % 3 == 0, index=frame.index)
+
     res = run_backtest(df, "QQQ_close", splits, _factories(), eval_mask=keep)
     assert res["random_walk"].n_eval_obs > 0
     assert np.isfinite(res["random_walk"].coverage_80)

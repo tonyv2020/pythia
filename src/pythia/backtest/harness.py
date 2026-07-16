@@ -37,7 +37,7 @@ class Report:
     n_eval_obs: int
     mae: float
     hit_rate: float
-    coverage_80: float          # empirical P10-P90 coverage on eval
+    coverage_80: float  # empirical P10-P90 coverage on eval
     crps: float
     pinball_50: float
     pinball_10: float
@@ -128,8 +128,8 @@ def run_backtest(
     purge = purge_last_train_rows if purge_last_train_rows is not None else max(horizon - 1, 0)
 
     frame = frame.sort_index()
-    returns = target_fn(frame) if target_fn is not None else _target_returns(
-        frame, target_col, horizon
+    returns = (
+        target_fn(frame) if target_fn is not None else _target_returns(frame, target_col, horizon)
     )
 
     mask_series: pd.Series | None = None
@@ -187,8 +187,7 @@ def run_backtest(
             last_attn = getattr(attn_source, "last_attention_weights", None)
             if len(fc.mean) != len(y_true_idx):
                 raise RuntimeError(
-                    f"{name} produced {len(fc.mean)} predictions for "
-                    f"{len(y_true_idx)} eval rows"
+                    f"{name} produced {len(fc.mean)} predictions for {len(y_true_idx)} eval rows"
                 )
             yt = np.asarray(y_true.to_list())[keep]
             mean = np.asarray(fc.mean.to_list())[keep]
@@ -213,9 +212,7 @@ def run_backtest(
     return _aggregate(per_split_records, rw_name)
 
 
-def _aggregate(
-    per_split_records: dict[str, list[dict]], rw_name: str
-) -> dict[str, Report]:
+def _aggregate(per_split_records: dict[str, list[dict]], rw_name: str) -> dict[str, Report]:
     reports: dict[str, Report] = {}
 
     # First pass: raw metrics per model. Second pass adds MAE-skill vs RW.

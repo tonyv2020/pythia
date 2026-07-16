@@ -16,8 +16,9 @@ from pythia.models.quantile_loss import multi_quantile_pinball
 
 
 def test_tft_lite_forward_shape() -> None:
-    cfg = TFTLiteConfig(n_features=8, encoder_length=20, hidden_size=8, n_targets=2,
-                        quantiles=(0.1, 0.5, 0.9))
+    cfg = TFTLiteConfig(
+        n_features=8, encoder_length=20, hidden_size=8, n_targets=2, quantiles=(0.1, 0.5, 0.9)
+    )
     m = TFTLite(cfg)
     x = torch.randn(4, cfg.encoder_length, cfg.n_features)
     q_preds, vsn_w = m(x)
@@ -30,8 +31,9 @@ def test_tft_lite_forward_shape() -> None:
 def test_pinball_reduces_over_training() -> None:
     """A trivial fit on constant targets should push pinball loss down."""
     torch.manual_seed(0)
-    cfg = TFTLiteConfig(n_features=3, encoder_length=10, hidden_size=8, n_targets=1,
-                        quantiles=(0.1, 0.5, 0.9))
+    cfg = TFTLiteConfig(
+        n_features=3, encoder_length=10, hidden_size=8, n_targets=1, quantiles=(0.1, 0.5, 0.9)
+    )
     m = TFTLite(cfg)
     opt = torch.optim.Adam(m.parameters(), lr=1e-2)
     x = torch.randn(32, 10, 3)
@@ -57,21 +59,24 @@ def test_adapter_fit_predict_on_synthetic() -> None:
     r = rng.normal(0.0, 0.01, size=len(idx))
     px = 100.0 * np.exp(np.cumsum(r))
 
-    df = pd.DataFrame({
-        "QQQ_close": px,
-        "SPY_close": px * (1 + rng.normal(0, 0.001, size=len(idx))),
-        "QQQ_volume": rng.integers(1_000_000, 5_000_000, size=len(idx)),
-        "SPY_volume": rng.integers(500_000, 2_000_000, size=len(idx)),
-        "dow": [d.weekday() for d in idx],
-        "month": idx.month,
-        "dom": idx.day,
-        "is_monday": (idx.weekday == 0),
-        "is_friday": (idx.weekday == 4),
-        "is_month_end": False,
-        "is_quarter_end": False,
-        "days_to_fomc": np.arange(len(idx)) % 45,
-        "is_earnings_season": (idx.month % 3 == 1),
-    }, index=idx)
+    df = pd.DataFrame(
+        {
+            "QQQ_close": px,
+            "SPY_close": px * (1 + rng.normal(0, 0.001, size=len(idx))),
+            "QQQ_volume": rng.integers(1_000_000, 5_000_000, size=len(idx)),
+            "SPY_volume": rng.integers(500_000, 2_000_000, size=len(idx)),
+            "dow": [d.weekday() for d in idx],
+            "month": idx.month,
+            "dom": idx.day,
+            "is_monday": (idx.weekday == 0),
+            "is_friday": (idx.weekday == 4),
+            "is_month_end": False,
+            "is_quarter_end": False,
+            "days_to_fomc": np.arange(len(idx)) % 45,
+            "is_earnings_season": (idx.month % 3 == 1),
+        },
+        index=idx,
+    )
 
     train = df.iloc[:350]
     eval_idx = df.index[350:355]
@@ -97,21 +102,24 @@ def test_adapter_captures_last_attention() -> None:
     rng = np.random.default_rng(0)
     r = rng.normal(0.0, 0.01, size=len(idx))
     px = 100.0 * np.exp(np.cumsum(r))
-    df = pd.DataFrame({
-        "QQQ_close": px,
-        "SPY_close": px * (1 + rng.normal(0, 0.001, size=len(idx))),
-        "QQQ_volume": rng.integers(1_000_000, 5_000_000, size=len(idx)),
-        "SPY_volume": rng.integers(500_000, 2_000_000, size=len(idx)),
-        "dow": [d.weekday() for d in idx],
-        "month": idx.month,
-        "dom": idx.day,
-        "is_monday": (idx.weekday == 0),
-        "is_friday": (idx.weekday == 4),
-        "is_month_end": False,
-        "is_quarter_end": False,
-        "days_to_fomc": np.arange(len(idx)) % 45,
-        "is_earnings_season": (idx.month % 3 == 1),
-    }, index=idx)
+    df = pd.DataFrame(
+        {
+            "QQQ_close": px,
+            "SPY_close": px * (1 + rng.normal(0, 0.001, size=len(idx))),
+            "QQQ_volume": rng.integers(1_000_000, 5_000_000, size=len(idx)),
+            "SPY_volume": rng.integers(500_000, 2_000_000, size=len(idx)),
+            "dow": [d.weekday() for d in idx],
+            "month": idx.month,
+            "dom": idx.day,
+            "is_monday": (idx.weekday == 0),
+            "is_friday": (idx.weekday == 4),
+            "is_month_end": False,
+            "is_quarter_end": False,
+            "days_to_fomc": np.arange(len(idx)) % 45,
+            "is_earnings_season": (idx.month % 3 == 1),
+        },
+        index=idx,
+    )
     train = df.iloc[:350]
     eval_idx = df.index[350:355]
     model = TFTLiteModel(

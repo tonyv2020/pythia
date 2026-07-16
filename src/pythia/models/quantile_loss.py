@@ -20,14 +20,14 @@ import torch.nn.functional as F
 
 
 def multi_quantile_pinball(
-    q_hat: torch.Tensor,          # (B, K)
-    y: torch.Tensor,              # (B,) or (B, 1)
-    quantiles: torch.Tensor,      # (K,)
+    q_hat: torch.Tensor,  # (B, K)
+    y: torch.Tensor,  # (B,) or (B, 1)
+    quantiles: torch.Tensor,  # (K,)
     crossing_penalty: float = 0.1,
 ) -> torch.Tensor:
     if y.dim() == 1:
         y = y.unsqueeze(1)
-    diff = y - q_hat              # (B, K)
+    diff = y - q_hat  # (B, K)
     q = quantiles.view(1, -1)
     pinball = torch.maximum(q * diff, (q - 1.0) * diff).mean()
 

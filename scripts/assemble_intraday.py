@@ -31,12 +31,20 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--start", type=_parse_date, required=True)
     p.add_argument("--end", type=_parse_date, required=True)
     p.add_argument("--out", type=Path, required=True)
-    p.add_argument("--bar-minutes", type=int, default=30,
-                   help="bar width in minutes = forecast horizon (default 30)")
-    p.add_argument("--symbols", type=str, default=None,
-                   help="comma-separated override (default: full board)")
-    p.add_argument("--include-extended-hours", action="store_true",
-                   help="keep pre/post-market bars (default: regular session only)")
+    p.add_argument(
+        "--bar-minutes",
+        type=int,
+        default=30,
+        help="bar width in minutes = forecast horizon (default 30)",
+    )
+    p.add_argument(
+        "--symbols", type=str, default=None, help="comma-separated override (default: full board)"
+    )
+    p.add_argument(
+        "--include-extended-hours",
+        action="store_true",
+        help="keep pre/post-market bars (default: regular session only)",
+    )
     args = p.parse_args(argv)
 
     symbols = None
@@ -44,7 +52,8 @@ def main(argv: list[str] | None = None) -> int:
         symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
 
     res = assemble_intraday_dataset(
-        args.start, args.end,
+        args.start,
+        args.end,
         bar_minutes=args.bar_minutes,
         session_only=not args.include_extended_hours,
         symbols=symbols,

@@ -67,7 +67,9 @@ def test_horizon_purge_removes_last_h_minus_1_train_rows():
     h = 3
     recorder: list = []
     run_backtest(
-        df, "QQQ_close", splits,
+        df,
+        "QQQ_close",
+        splits,
         {"random_walk": lambda: _SpyRW("QQQ_close", recorder)},
         horizon=h,
     )
@@ -79,23 +81,24 @@ def test_horizon_purge_removes_last_h_minus_1_train_rows():
         assert list(seen) == list(expected), "fit train != raw train purged by h-1"
         assert set(seen).isdisjoint(set(eval_frame.index))
         # The purged rows are exactly the last h-1 of the raw train window.
-        assert list(raw_train.index[-(h - 1):]) == list(raw_train.index[len(expected):])
+        assert list(raw_train.index[-(h - 1) :]) == list(raw_train.index[len(expected) :])
 
 
 def test_horizon_gt_eval_size_raises():
     df = _frame(120)
     splits = list(expanding_walk_forward(df.index, initial_train_size=40, eval_size=5))
     with pytest.raises(RuntimeError):
-        run_backtest(df, "QQQ_close", splits,
-                     {"random_walk": lambda: RandomWalk("QQQ_close")}, horizon=10)
+        run_backtest(
+            df, "QQQ_close", splits, {"random_walk": lambda: RandomWalk("QQQ_close")}, horizon=10
+        )
 
 
 def test_h1_default_is_noop_vs_explicit():
     df = _frame(120)
     splits = list(expanding_walk_forward(df.index, initial_train_size=40, eval_size=20))
-    a = run_backtest(df, "QQQ_close", splits,
-                     {"random_walk": lambda: RandomWalk("QQQ_close")})
-    b = run_backtest(df, "QQQ_close", splits,
-                     {"random_walk": lambda: RandomWalk("QQQ_close")}, horizon=1)
+    a = run_backtest(df, "QQQ_close", splits, {"random_walk": lambda: RandomWalk("QQQ_close")})
+    b = run_backtest(
+        df, "QQQ_close", splits, {"random_walk": lambda: RandomWalk("QQQ_close")}, horizon=1
+    )
     assert a["random_walk"].n_eval_obs == b["random_walk"].n_eval_obs
     assert a["random_walk"].crps == b["random_walk"].crps

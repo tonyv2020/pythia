@@ -115,6 +115,7 @@ class TFTLiteModel:
         if f"{sym}_low" in train.columns:
             target_cols.add(f"{sym}_low")
         from ..features.lag import default_policy_for
+
         # Drop columns that are entirely NaN in the train window before we
         # build the policy — otherwise ffill has nothing to fill and the join
         # kills every row. Common on intraday P3 where the raptor tick feed
@@ -128,9 +129,7 @@ class TFTLiteModel:
         # so the covariate-lag gate is preserved. Rows still NaN after ffill
         # (leading rows before any symbol reported) are dropped by the join.
         train_filled = train.copy()
-        train_filled[sorted(policy.observed)] = (
-            train_filled[sorted(policy.observed)].ffill()
-        )
+        train_filled[sorted(policy.observed)] = train_filled[sorted(policy.observed)].ffill()
         feat = build_features(train_filled, policy, lag=self.lag)
 
         targets = self._build_targets(train)
@@ -180,10 +179,8 @@ class TFTLiteModel:
                 # crossing_penalty=0 for the report run — the pinball loss
                 # itself already discourages crossing, and a large penalty
                 # collapses the quantile spread (miscalibration failure mode).
-                l_ret = multi_quantile_pinball(q_preds[0], y[:, 0], q_tensor,
-                                                crossing_penalty=0.0)
-                l_rng = multi_quantile_pinball(q_preds[1], y[:, 1], q_tensor,
-                                                crossing_penalty=0.0)
+                l_ret = multi_quantile_pinball(q_preds[0], y[:, 0], q_tensor, crossing_penalty=0.0)
+                l_rng = multi_quantile_pinball(q_preds[1], y[:, 1], q_tensor, crossing_penalty=0.0)
                 loss = 0.5 * (l_ret + l_rng)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -210,14 +207,12 @@ class TFTLiteModel:
         train = self._train_frame
         # Same ffill as in fit — past-only imputation, structurally leak-free.
         train_filled = train.copy()
-        train_filled[sorted(self._lag_policy.observed)] = (
-            train_filled[sorted(self._lag_policy.observed)].ffill()
-        )
+        train_filled[sorted(self._lag_policy.observed)] = train_filled[
+            sorted(self._lag_policy.observed)
+        ].ffill()
         feat = build_features(train_filled, self._lag_policy, lag=self.lag)
         feat_norm = (feat[self._feature_names].values - self._feat_mean) / self._feat_std
-        feat_norm_df = pd.DataFrame(
-            feat_norm, index=feat.index, columns=self._feature_names
-        )
+        feat_norm_df = pd.DataFrame(feat_norm, index=feat.index, columns=self._feature_names)
 
         # For each eval date t, we need the trailing encoder_length rows of
         # feat up to and including date t-1 (or the last train row if t is
@@ -234,14 +229,12 @@ class TFTLiteModel:
                 # Fall back to a flat "unknown" prediction: median 0, wide σ.
                 preds.append((0.0, -1.0, 1.0))
                 continue
-            window = feat_norm_df.values[anchor_pos - self.encoder_length + 1: anchor_pos + 1]
+            window = feat_norm_df.values[anchor_pos - self.encoder_length + 1 : anchor_pos + 1]
             x = torch.from_numpy(window.astype(np.float32)).unsqueeze(0).to(self.device)
             with torch.no_grad():
                 q_preds, _ = model(x)
             q_ret = q_preds[self.target_head].squeeze(0).detach().cpu().numpy()
-            preds.append((float(q_ret[q_idx_50]),
-                          float(q_ret[q_idx_10]),
-                          float(q_ret[q_idx_90])))
+            preds.append((float(q_ret[q_idx_50]), float(q_ret[q_idx_10]), float(q_ret[q_idx_90])))
         # P5c: after the loop, stash the LAST forecast's temporal attention
         # (length encoder_length, sums to ~1). Only meaningful if at least one
         # real (non-fallback) forecast ran; otherwise leave None.
@@ -255,9 +248,7 @@ class TFTLiteModel:
         # P10/P90 to sigma via Normal quantile scaling (2*inv_norm_cdf(0.9)).
         Z90_MINUS_Z10 = 2.5631031310892007
         means = np.array([p[0] for p in preds])
-        sigmas = np.array([
-            max((p[2] - p[1]) / Z90_MINUS_Z10, 1e-6) for p in preds
-        ])
+        sigmas = np.array([max((p[2] - p[1]) / Z90_MINUS_Z10, 1e-6) for p in preds])
         return ProbForecast(
             mean=pd.Series(means, index=eval_index),
             sigma=pd.Series(sigmas, index=eval_index),

@@ -16,7 +16,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-import numpy as np
 import pandas as pd
 from scipy.stats import norm  # type: ignore[import-not-found]
 

@@ -32,7 +32,6 @@ from pathlib import Path
 
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import ProgrammingError
-from sqlalchemy.dialects.postgresql import JSONB
 
 from ..config import DEFAULT_DB_DSN
 from ..data.source import get_engine
@@ -120,9 +119,9 @@ class ModelRegistry:
         except ProgrammingError:
             # InsufficientPrivilege — verify the table already exists.
             with self.engine.connect() as conn:
-                exists = conn.execute(text(
-                    "SELECT 1 FROM pg_class WHERE relname = 'pythia_models' AND relkind = 'r'"
-                )).first()
+                exists = conn.execute(
+                    text("SELECT 1 FROM pg_class WHERE relname = 'pythia_models' AND relkind = 'r'")
+                ).first()
             if exists is None:
                 raise
         self._ensured = True
@@ -190,7 +189,9 @@ class ModelRegistry:
             r = conn.execute(q, {"name": model_name}).mappings().first()
         if r is None:
             return None
-        report = r["report_json"] if isinstance(r["report_json"], dict) else json.loads(r["report_json"])
+        report = (
+            r["report_json"] if isinstance(r["report_json"], dict) else json.loads(r["report_json"])
+        )
         return ModelRecord(
             id=int(r["id"]),
             model_name=r["model_name"],
@@ -201,7 +202,6 @@ class ModelRegistry:
             artifact_uri=r["artifact_uri"],
             git_sha=r["git_sha"],
         )
-
 
         self.ensure_schema()
         q = text(
@@ -217,25 +217,29 @@ class ModelRegistry:
             rows = conn.execute(q, {"name": model_name}).mappings().all()
         out: list[ModelRecord] = []
         for r in rows:
-            report = r["report_json"] if isinstance(r["report_json"], dict) else json.loads(r["report_json"])
-            out.append(ModelRecord(
-                id=int(r["id"]),
-                model_name=r["model_name"],
-                model_version=r["model_version"],
-                trained_at=r["trained_at"],
-                dataset_hash=r["dataset_hash"],
-                report_json=report,
-                artifact_uri=r["artifact_uri"],
-                git_sha=r["git_sha"],
-            ))
+            report = (
+                r["report_json"]
+                if isinstance(r["report_json"], dict)
+                else json.loads(r["report_json"])
+            )
+            out.append(
+                ModelRecord(
+                    id=int(r["id"]),
+                    model_name=r["model_name"],
+                    model_version=r["model_version"],
+                    trained_at=r["trained_at"],
+                    dataset_hash=r["dataset_hash"],
+                    report_json=report,
+                    artifact_uri=r["artifact_uri"],
+                    git_sha=r["git_sha"],
+                )
+            )
         return out
 
 
 def _registry_dsn() -> str:
     return (
-        os.environ.get("PYTHIA_REGISTRY_DSN")
-        or os.environ.get("PYTHIA_DB_DSN")
-        or DEFAULT_DB_DSN
+        os.environ.get("PYTHIA_REGISTRY_DSN") or os.environ.get("PYTHIA_DB_DSN") or DEFAULT_DB_DSN
     )
 
 

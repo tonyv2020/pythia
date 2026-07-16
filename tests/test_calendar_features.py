@@ -20,8 +20,15 @@ def _daily_frame() -> pd.DataFrame:
 def test_add_calendar_features_returns_expected_columns() -> None:
     df = add_calendar_features(_daily_frame())
     expected = {
-        "dow", "month", "dom", "is_monday", "is_friday",
-        "is_month_end", "is_quarter_end", "days_to_fomc", "is_earnings_season",
+        "dow",
+        "month",
+        "dom",
+        "is_monday",
+        "is_friday",
+        "is_month_end",
+        "is_quarter_end",
+        "days_to_fomc",
+        "is_earnings_season",
     }
     assert expected.issubset(df.columns)
 
@@ -33,6 +40,7 @@ def test_days_to_fomc_monotone_between_meetings() -> None:
     # For a date between two meetings, days_to_fomc must strictly decrease
     # day over day, and hit 0 on the meeting day itself.
     from datetime import timedelta
+
     prior = (b - a).days + 1
     d = a + timedelta(days=1)
     while d < b:
@@ -51,10 +59,12 @@ def test_add_calendar_features_is_idempotent() -> None:
 
 
 def test_intraday_helper_computes_minutes_to_close() -> None:
-    df = pd.DataFrame({
-        "symbol": ["QQQ", "QQQ"],
-        "time": ["09:30:00", "15:59:00"],
-    })
+    df = pd.DataFrame(
+        {
+            "symbol": ["QQQ", "QQQ"],
+            "time": ["09:30:00", "15:59:00"],
+        }
+    )
     out = intraday_calendar_features(df)
     assert out["minute_of_day"].tolist() == [9 * 60 + 30, 15 * 60 + 59]
     assert out["minutes_to_close"].tolist() == [16 * 60 - (9 * 60 + 30), 1]

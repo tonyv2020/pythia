@@ -39,14 +39,38 @@ import pandas as pd
 # Published FOMC statement dates. Update this list when the FRB publishes
 # the next calendar. See docs/data-schema.md for provenance.
 FOMC_DATES: tuple[date, ...] = (
-    date(2023, 2, 1), date(2023, 3, 22), date(2023, 5, 3), date(2023, 6, 14),
-    date(2023, 7, 26), date(2023, 9, 20), date(2023, 11, 1), date(2023, 12, 13),
-    date(2024, 1, 31), date(2024, 3, 20), date(2024, 5, 1), date(2024, 6, 12),
-    date(2024, 7, 31), date(2024, 9, 18), date(2024, 11, 7), date(2024, 12, 18),
-    date(2025, 1, 29), date(2025, 3, 19), date(2025, 5, 7), date(2025, 6, 18),
-    date(2025, 7, 30), date(2025, 9, 17), date(2025, 10, 29), date(2025, 12, 10),
-    date(2026, 1, 28), date(2026, 3, 18), date(2026, 5, 6), date(2026, 6, 17),
-    date(2026, 7, 29), date(2026, 9, 16), date(2026, 11, 4), date(2026, 12, 16),
+    date(2023, 2, 1),
+    date(2023, 3, 22),
+    date(2023, 5, 3),
+    date(2023, 6, 14),
+    date(2023, 7, 26),
+    date(2023, 9, 20),
+    date(2023, 11, 1),
+    date(2023, 12, 13),
+    date(2024, 1, 31),
+    date(2024, 3, 20),
+    date(2024, 5, 1),
+    date(2024, 6, 12),
+    date(2024, 7, 31),
+    date(2024, 9, 18),
+    date(2024, 11, 7),
+    date(2024, 12, 18),
+    date(2025, 1, 29),
+    date(2025, 3, 19),
+    date(2025, 5, 7),
+    date(2025, 6, 18),
+    date(2025, 7, 30),
+    date(2025, 9, 17),
+    date(2025, 10, 29),
+    date(2025, 12, 10),
+    date(2026, 1, 28),
+    date(2026, 3, 18),
+    date(2026, 5, 6),
+    date(2026, 6, 17),
+    date(2026, 7, 29),
+    date(2026, 9, 16),
+    date(2026, 11, 4),
+    date(2026, 12, 16),
 )
 
 
@@ -65,8 +89,7 @@ def _is_earnings_season(d: date) -> bool:
     Q3 → mid-Oct to mid-Nov; Q4 → late-Jan to late-Feb.
     """
     # Days since last quarter-end (0-based).
-    q_ends = [date(d.year, 3, 31), date(d.year, 6, 30),
-              date(d.year, 9, 30), date(d.year, 12, 31)]
+    q_ends = [date(d.year, 3, 31), date(d.year, 6, 30), date(d.year, 9, 30), date(d.year, 12, 31)]
     # Days since PREVIOUS quarter end (so day-1 of Q1 refers back to Dec 31).
     last_q = max((q for q in q_ends if q < d), default=date(d.year - 1, 12, 31))
     delta = (d - last_q).days
@@ -98,10 +121,12 @@ def add_calendar_features(daily_wide: pd.DataFrame) -> pd.DataFrame:
     # doesn't require knowing the exchange calendar in advance.
     month_key = idx.strftime("%Y-%m")
     quarter_key = pd.PeriodIndex(idx, freq="Q").astype(str)
-    df["is_month_end"] = pd.Series(month_key, index=df.index) \
-        != pd.Series(month_key, index=df.index).shift(-1, fill_value="__END__")
-    df["is_quarter_end"] = pd.Series(quarter_key, index=df.index) \
-        != pd.Series(quarter_key, index=df.index).shift(-1, fill_value="__END__")
+    df["is_month_end"] = pd.Series(month_key, index=df.index) != pd.Series(
+        month_key, index=df.index
+    ).shift(-1, fill_value="__END__")
+    df["is_quarter_end"] = pd.Series(quarter_key, index=df.index) != pd.Series(
+        quarter_key, index=df.index
+    ).shift(-1, fill_value="__END__")
 
     df["days_to_fomc"] = np.array([_days_to_next_fomc(d) for d in dates])
     df["is_earnings_season"] = np.array([_is_earnings_season(d) for d in dates])

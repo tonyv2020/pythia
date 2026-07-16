@@ -53,9 +53,7 @@ class BreakoutRate:
     window: int
 
 
-def detect_breakouts(
-    realized: pd.Series, p10: pd.Series, p90: pd.Series
-) -> pd.DataFrame:
+def detect_breakouts(realized: pd.Series, p10: pd.Series, p90: pd.Series) -> pd.DataFrame:
     """Per-bar breakout flags. Rows aligned on the shared index (inner-joined,
     NaNs dropped). ``direction``: 'up' if realized > p90, 'down' if < p10, else
     'none'. ``magnitude`` = signed distance past the breached edge (0 if none).
@@ -72,7 +70,8 @@ def detect_breakouts(
     down = df["realized"] < df["p10"]
     direction = np.where(up, "up", np.where(down, "down", "none"))
     magnitude = np.where(
-        up, df["realized"] - df["p90"],
+        up,
+        df["realized"] - df["p90"],
         np.where(down, df["p10"] - df["realized"], 0.0),
     )
     out = pd.DataFrame(
@@ -95,9 +94,7 @@ def breakout_rate(breakouts: pd.DataFrame, window: int = 20) -> BreakoutRate:
         return BreakoutRate(breakout_rate=float("nan"), expected=EXPECTED_RATE, n=0, window=window)
     tail = breakouts.tail(window)
     rate = float(tail["exceeded"].mean())
-    return BreakoutRate(
-        breakout_rate=rate, expected=EXPECTED_RATE, n=int(len(tail)), window=window
-    )
+    return BreakoutRate(breakout_rate=rate, expected=EXPECTED_RATE, n=int(len(tail)), window=window)
 
 
 ModelFactory = Callable[[], Model]
@@ -158,17 +155,26 @@ def run_breakout_scan(
         bo["oos"] = True
         parts.append(bo)
 
-    cols = ["model_version", "symbol", "ts", "horizon", "direction",
-            "realized", "p10", "p90", "exceeded", "magnitude", "oos"]
+    cols = [
+        "model_version",
+        "symbol",
+        "ts",
+        "horizon",
+        "direction",
+        "realized",
+        "p10",
+        "p90",
+        "exceeded",
+        "magnitude",
+        "oos",
+    ]
     if not parts:
         return pd.DataFrame(columns=cols)
     out = pd.concat(parts, ignore_index=True)
     return out[cols]
 
 
-def build_breakouts_response(
-    scan: pd.DataFrame, window: int = 20, recent: int = 30
-) -> dict:
+def build_breakouts_response(scan: pd.DataFrame, window: int = 20, recent: int = 30) -> dict:
     """The /breakouts serve block: the rolling (recent) breach rate AND the
     lifetime breach rate vs the 20% expected + the most recent breakout events
     + an honest calibration verdict.
@@ -185,6 +191,7 @@ def build_breakouts_response(
     recent-drift amber is not mistaken for a structurally-broken band.
     Disclosure, not a trade signal (matches the D25 range badge).
     """
+
     def _band(x: float) -> bool:
         return 0.10 <= x <= 0.30 if x == x else False  # x==x → not NaN
 
@@ -207,45 +214,55 @@ def build_breakouts_response(
     elif life_ok and not in_band:
         # The honest case the single-rate verdict got wrong: structurally sound,
         # recently drifting.
-        verdict = (f"{_recent_phrase(r)}; but LIFETIME breach {lifetime:.0%} "
-                   f"~ {EXPECTED_RATE:.0%} over n={len(scan)} — band is "
-                   f"structurally calibrated, this is a RECENT vol-regime drift.")
+        verdict = (
+            f"{_recent_phrase(r)}; but LIFETIME breach {lifetime:.0%} "
+            f"~ {EXPECTED_RATE:.0%} over n={len(scan)} — band is "
+            f"structurally calibrated, this is a RECENT vol-regime drift."
+        )
     elif not life_ok:
         struct = "too TIGHT" if lifetime > 0.30 else "too WIDE"
-        verdict = (f"lifetime breach {lifetime:.0%} vs {EXPECTED_RATE:.0%} "
-                   f"expected over n={len(scan)} — band structurally {struct}. "
-                   f"({_recent_phrase(r)}.)")
+        verdict = (
+            f"lifetime breach {lifetime:.0%} vs {EXPECTED_RATE:.0%} "
+            f"expected over n={len(scan)} — band structurally {struct}. "
+            f"({_recent_phrase(r)}.)"
+        )
     else:
-        verdict = (f"{_recent_phrase(r)}; lifetime breach {lifetime:.0%} "
-                   f"~ {EXPECTED_RATE:.0%} — band calibrated.")
+        verdict = (
+            f"{_recent_phrase(r)}; lifetime breach {lifetime:.0%} "
+            f"~ {EXPECTED_RATE:.0%} — band calibrated."
+        )
 
     events: list[dict] = []
     if not scan.empty:
         tail = scan[scan["exceeded"]].tail(recent)
         for _, row in tail.iterrows():
             ts = row["ts"]
-            events.append({
-                "ts": ts.isoformat() if hasattr(ts, "isoformat") else str(ts),
-                "direction": row["direction"],
-                "realized": float(row["realized"]),
-                "p10": float(row["p10"]),
-                "p90": float(row["p90"]),
-                "magnitude": float(row["magnitude"]),
-            })
+            events.append(
+                {
+                    "ts": ts.isoformat() if hasattr(ts, "isoformat") else str(ts),
+                    "direction": row["direction"],
+                    "realized": float(row["realized"]),
+                    "p10": float(row["p10"]),
+                    "p90": float(row["p90"]),
+                    "magnitude": float(row["magnitude"]),
+                }
+            )
 
     return {
         "expected_rate": EXPECTED_RATE,
         "window": window,
-        "rate": None if r != r else float(r),               # rolling/recent
+        "rate": None if r != r else float(r),  # rolling/recent
         "lifetime_rate": None if lifetime != lifetime else lifetime,  # full-period
         "lifetime_calibrated": life_ok,
         "n": rate.n,
         "n_scan": int(len(scan)),
-        "badge": "green" if in_band else "amber",           # reflects recent
+        "badge": "green" if in_band else "amber",  # reflects recent
         "verdict": verdict,
         "events": events,
-        "note": ("P10-P90 breach rate vs the ~20% expected under calibration — "
-                 "rolling (recent) AND lifetime (structural). A diagnostic of "
-                 "forecast honesty (band too tight/wide), NOT a trade signal — "
-                 "do not size trades from breakout flags."),
+        "note": (
+            "P10-P90 breach rate vs the ~20% expected under calibration — "
+            "rolling (recent) AND lifetime (structural). A diagnostic of "
+            "forecast honesty (band too tight/wide), NOT a trade signal — "
+            "do not size trades from breakout flags."
+        ),
     }

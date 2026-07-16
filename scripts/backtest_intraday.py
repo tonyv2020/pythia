@@ -45,7 +45,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--eval-size", type=int, default=39, help="~1 session of 10-min bars")
     p.add_argument("--target", type=str, default="QQQ_close")
     # Intraday TFT-lite (the REPORTED verdict must be a GPU pass; CPU = smoke).
-    p.add_argument("--with-tft", action="store_true", help="also train + score the intraday TFT-lite")
+    p.add_argument(
+        "--with-tft", action="store_true", help="also train + score the intraday TFT-lite"
+    )
     p.add_argument("--encoder-length", type=int, default=39)
     p.add_argument("--hidden-size", type=int, default=32)
     p.add_argument("--max-epochs", type=int, default=60)
@@ -63,9 +65,15 @@ def main(argv: list[str] | None = None) -> int:
         batch_size=args.tft_batch_size,
     )
     reports = run_intraday_backtest(
-        intr.bars, price_col=args.target, p_move=p_move, tilt=tilt,
-        horizon=args.horizon, initial_train=args.initial_train, eval_size=args.eval_size,
-        with_tft=args.with_tft, tft_kwargs=tft_kwargs,
+        intr.bars,
+        price_col=args.target,
+        p_move=p_move,
+        tilt=tilt,
+        horizon=args.horizon,
+        initial_train=args.initial_train,
+        eval_size=args.eval_size,
+        with_tft=args.with_tft,
+        tft_kwargs=tft_kwargs,
     )
 
     out = {name: r.as_dict() for name, r in reports.items()}
@@ -80,9 +88,14 @@ def main(argv: list[str] | None = None) -> int:
         "p_move_rows": int(p_move.shape[0]),
         "direction_rows": int(tilt.shape[0]),
         "models": {
-            name: {"n_eval_obs": r.n_eval_obs, "n_splits": r.n_splits,
-                   "coverage_80": r.coverage_80, "crps": r.crps,
-                   "mae_skill_vs_rw": r.mae_skill_vs_rw, "warnings": r.warnings}
+            name: {
+                "n_eval_obs": r.n_eval_obs,
+                "n_splits": r.n_splits,
+                "coverage_80": r.coverage_80,
+                "crps": r.crps,
+                "mae_skill_vs_rw": r.mae_skill_vs_rw,
+                "warnings": r.warnings,
+            }
             for name, r in reports.items()
         },
         "report": str(args.report),

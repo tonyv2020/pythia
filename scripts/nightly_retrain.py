@@ -32,16 +32,13 @@ from pathlib import Path
 # the backfilled dataset is the FULL board, not the long-history subset the
 # thin-only path is limited to.
 FULL_BOARD = (
-    "QQQ,SPY,DIA,IWM,"
-    "AAPL,MSFT,NVDA,GOOG,AMZN,META,TSLA,"
-    "GLD,SLV,GDX,"
-    "USO,UGA,UNG,DBE,"
-    "CORN,WEAT"
+    "QQQ,SPY,DIA,IWM,AAPL,MSFT,NVDA,GOOG,AMZN,META,TSLA,GLD,SLV,GDX,USO,UGA,UNG,DBE,CORN,WEAT"
 )
 
 
 def _run(cmd: list[str]) -> None:
-    sys.stdout.write(f"$ {' '.join(cmd)}\n"); sys.stdout.flush()
+    sys.stdout.write(f"$ {' '.join(cmd)}\n")
+    sys.stdout.flush()
     subprocess.check_call(cmd)
 
 
@@ -72,29 +69,35 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="nightly_retrain")
     p.add_argument("--data-dir", type=Path, default=Path("/data"))
     p.add_argument(
-        "--start", type=str, default="2018-01-01",
+        "--start",
+        type=str,
+        default="2018-01-01",
         help="earliest date for the assembled dataset. Default 2018-01-01 covers "
-             "the D8 backfill window; the raptor feed still supplies recent bars.",
+        "the D8 backfill window; the raptor feed still supplies recent bars.",
     )
     p.add_argument("--model-name", type=str, default="tft_lite_daily_qqq")
     p.add_argument("--artifact-uri", type=str, default="pvc://pythia-data/report.json")
     p.add_argument("--symbols", type=str, default=FULL_BOARD)
     p.add_argument(
-        "--historical", type=str, default="yfinance",
+        "--historical",
+        type=str,
+        default="yfinance",
         help="D8 backfill provider (default: yfinance). Pass empty string "
-             "to disable the backfill and use raptor-only bars.",
+        "to disable the backfill and use raptor-only bars.",
     )
     p.add_argument(
         "--no-historical-adjust",
         action="store_true",
         help="Use raw (unadjusted) historical prices. Default is split/div-"
-             "adjusted; unadjusted would inject fake ~90%% split-day returns "
-             "into a multi-year sample (helen D10).",
+        "adjusted; unadjusted would inject fake ~90%% split-day returns "
+        "into a multi-year sample (helen D10).",
     )
     p.add_argument(
-        "--initial-train", type=int, default=252,
+        "--initial-train",
+        type=int,
+        default=252,
         help="~1 trading yr — right sized for the D8-fattened dataset "
-             "(n=1869); the thin-only default was 150.",
+        "(n=1869); the thin-only default was 150.",
     )
     p.add_argument("--eval-size", type=int, default=21)
     p.add_argument("--max-epochs", type=int, default=80)
@@ -102,8 +105,8 @@ def main(argv: list[str] | None = None) -> int:
         "--skip-p5-blocks",
         action="store_true",
         help="skip attaching the P5a range + P5b breakout blocks to the new "
-             "row (diagnostic runs). Default: attach them so /latest range + "
-             "/breakouts survive the retrain (helen D28).",
+        "row (diagnostic runs). Default: attach them so /latest range + "
+        "/breakouts survive the retrain (helen D28).",
     )
     args = p.parse_args(argv)
 
@@ -114,43 +117,70 @@ def main(argv: list[str] | None = None) -> int:
     end = (datetime.now(UTC).date() - timedelta(days=1)).isoformat()
 
     assemble_cmd = [
-        sys.executable, "-m", "scripts.assemble_dataset",
-        "--start", args.start,
-        "--end", end,
-        "--symbols", args.symbols,
-        "--out", str(dataset),
+        sys.executable,
+        "-m",
+        "scripts.assemble_dataset",
+        "--start",
+        args.start,
+        "--end",
+        end,
+        "--symbols",
+        args.symbols,
+        "--out",
+        str(dataset),
     ]
     if args.historical:
-        assemble_cmd += ["--historical", args.historical,
-                         "--historical-start", args.start]
+        assemble_cmd += ["--historical", args.historical, "--historical-start", args.start]
         if args.no_historical_adjust:
             assemble_cmd += ["--no-adjust"]
 
     _run(assemble_cmd)
 
-    _run([
-        sys.executable, "-m", "scripts.train_p1_tft",
-        "--dataset", str(dataset),
-        "--target", "QQQ_close",
-        "--initial-train", str(args.initial_train),
-        "--eval-size", str(args.eval_size),
-        "--max-epochs", str(args.max_epochs),
-        # D14 cov80 0.781 came from encoder=60 hidden=16; my earlier 40/32
-        # miscalibrated to cov80 0.586. Revert to agent-2s calibrated config.
-        "--encoder-length", "60",
-        "--hidden-size", "16",
-        "--batch-size", "32",
-        "--report", str(report),
-    ])
+    _run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.train_p1_tft",
+            "--dataset",
+            str(dataset),
+            "--target",
+            "QQQ_close",
+            "--initial-train",
+            str(args.initial_train),
+            "--eval-size",
+            str(args.eval_size),
+            "--max-epochs",
+            str(args.max_epochs),
+            # D14 cov80 0.781 came from encoder=60 hidden=16; my earlier 40/32
+            # miscalibrated to cov80 0.586. Revert to agent-2s calibrated config.
+            "--encoder-length",
+            "60",
+            "--hidden-size",
+            "16",
+            "--batch-size",
+            "32",
+            "--report",
+            str(report),
+        ]
+    )
 
-    _run([
-        sys.executable, "-m", "scripts.register_report",
-        "--model-name", args.model_name,
-        "--model-version", f"v{today}",
-        "--dataset", str(dataset),
-        "--report", str(report),
-        "--artifact-uri", args.artifact_uri,
-    ])
+    _run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.register_report",
+            "--model-name",
+            args.model_name,
+            "--model-version",
+            f"v{today}",
+            "--dataset",
+            str(dataset),
+            "--report",
+            str(report),
+            "--artifact-uri",
+            args.artifact_uri,
+        ]
+    )
 
     # P5 multi-target blocks (helen D28: P5a range + P5b breakouts ACCEPTED).
     # register_report writes ONLY the price report (+ the trainer's attention)
@@ -165,19 +195,29 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_p5_blocks:
         hist = args.historical if args.historical else "none"
         block_args = [
-            "--model-name", args.model_name,
-            "--start", args.start, "--end", end,
-            "--symbol", "QQQ", "--historical", hist,
+            "--model-name",
+            args.model_name,
+            "--start",
+            args.start,
+            "--end",
+            end,
+            "--symbol",
+            "QQQ",
+            "--historical",
+            hist,
         ]
         ok_range = _run_soft(
             [sys.executable, "-m", "scripts.register_range_block", *block_args],
-            "register_range_block (P5a)")
+            "register_range_block (P5a)",
+        )
         ok_breakouts = _run_soft(
             [sys.executable, "-m", "scripts.register_breakouts", *block_args],
-            "register_breakouts (P5b)")
+            "register_breakouts (P5b)",
+        )
         sys.stdout.write(
             f"P5 blocks: range={'ok' if ok_range else 'FAILED'} "
-            f"breakouts={'ok' if ok_breakouts else 'FAILED'}\n")
+            f"breakouts={'ok' if ok_breakouts else 'FAILED'}\n"
+        )
 
     sys.stdout.write(f"nightly retrain complete: {today}\n")
     return 0

@@ -55,7 +55,7 @@ def test_conformal_mean_is_untouched_and_sigma_scaled():
     m = ConformalScaledModel(_FakeBase(0.02), "QQQ_close", horizon=1)
     m.fit(df)
     fc = m.predict(df.index[50:60])
-    assert (fc.mean == 0).all()                      # dispersion-only
+    assert (fc.mean == 0).all()  # dispersion-only
     assert np.allclose(fc.sigma.to_numpy(), m._s * 0.02)
 
 
@@ -86,19 +86,27 @@ def test_conformal_target_fn_calibrates_custom_target():
 
     class _RangeBase(Model):
         encoder_length = 0
-        def fit(self, train): pass
+
+        def fit(self, train):
+            pass
+
         def predict(self, idx):
             n = len(idx)
-            return ProbForecast(mean=pd.Series(np.full(n, 0.02), index=idx),
-                                sigma=pd.Series(np.full(n, 0.001), index=idx))
+            return ProbForecast(
+                mean=pd.Series(np.full(n, 0.02), index=idx),
+                sigma=pd.Series(np.full(n, 0.001), index=idx),
+            )
 
     df = _frame(200)
     # give it high/low so realized_range_target computes
     df = df.assign(QQQ_high=df["QQQ_close"] + 1.0, QQQ_low=df["QQQ_close"] - 1.0)
+
     def rfn(f):
         return realized_range_target(f["QQQ_high"], f["QQQ_low"]).reindex(f.index)
-    m = ConformalScaledModel(base=_RangeBase(), target_col="QQQ_close",
-                             horizon=1, coverage=0.80, target_fn=rfn)
+
+    m = ConformalScaledModel(
+        base=_RangeBase(), target_col="QQQ_close", horizon=1, coverage=0.80, target_fn=rfn
+    )
     m.fit(df)
     y = rfn(df).dropna()
     z80 = float(norm.ppf(0.90))

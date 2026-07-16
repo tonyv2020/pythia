@@ -49,7 +49,7 @@ TicksFn = Callable[[Iterable[str], date, date], pd.DataFrame]
 
 @dataclass(frozen=True)
 class IntradayAssemblyResult:
-    bars: pd.DataFrame            # wide, DatetimeIndex (bar timestamp)
+    bars: pd.DataFrame  # wide, DatetimeIndex (bar timestamp)
     symbols_included: tuple[str, ...]
     symbols_missing: tuple[str, ...]
     bar_minutes: int
@@ -60,8 +60,9 @@ def _floor_to_bar(t: pd.Series, bar_minutes: int) -> pd.Series:
     return (t // bar_minutes) * bar_minutes
 
 
-def bars_from_ticks(ticks: pd.DataFrame, bar_minutes: int = 30,
-                    session_only: bool = True) -> pd.DataFrame:
+def bars_from_ticks(
+    ticks: pd.DataFrame, bar_minutes: int = 30, session_only: bool = True
+) -> pd.DataFrame:
     """Roll intraday ticks up to per-symbol fixed ``bar_minutes`` OHLCV bars.
 
     Ticks need columns: ``symbol, date, time (HH:MM:SS), price, volume``.
@@ -69,8 +70,17 @@ def bars_from_ticks(ticks: pd.DataFrame, bar_minutes: int = 30,
     volume, is_session_open``. Determinism: ties broken by tick order (input is
     ORDER BY symbol,date,time), so open/close are first/last within the bar.
     """
-    cols = ["symbol", "bar_ts", "session_date", "open", "high", "low",
-            "close", "volume", "is_session_open"]
+    cols = [
+        "symbol",
+        "bar_ts",
+        "session_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "is_session_open",
+    ]
     if ticks is None or ticks.empty:
         return pd.DataFrame(columns=cols)
 
@@ -110,10 +120,8 @@ def bars_from_ticks(ticks: pd.DataFrame, bar_minutes: int = 30,
     )
     # First bar of each (symbol, session) = the overnight-gap bar.
     bars = bars.sort_values(["symbol", "bar_ts"])
-    bars["is_session_open"] = (
-        bars.groupby("symbol")["session_date"].transform(
-            lambda s: s != s.shift(1)
-        )
+    bars["is_session_open"] = bars.groupby("symbol")["session_date"].transform(
+        lambda s: s != s.shift(1)
     )
     return bars[cols].reset_index(drop=True)
 
@@ -123,17 +131,28 @@ def _pivot_intraday_wide(bars: pd.DataFrame) -> pd.DataFrame:
     ``{symbol}_volume`` (+ a frame-level ``is_session_open`` marker)."""
     if bars.empty:
         return pd.DataFrame()
-    close = (bars.pivot(index="bar_ts", columns="symbol", values="close")
-             .add_suffix("_close").sort_index())
-    volume = (bars.pivot(index="bar_ts", columns="symbol", values="volume")
-              .add_suffix("_volume").sort_index())
+    close = (
+        bars.pivot(index="bar_ts", columns="symbol", values="close")
+        .add_suffix("_close")
+        .sort_index()
+    )
+    volume = (
+        bars.pivot(index="bar_ts", columns="symbol", values="volume")
+        .add_suffix("_volume")
+        .sort_index()
+    )
     wide = close.join(volume, how="outer")
     wide = wide[sorted(wide.columns)]
 
     # A bar_ts is a session-open row if ANY symbol marks it so (they share the
     # session calendar). Kept as one frame-level column for overnight masking.
-    open_flags = (bars.groupby("bar_ts")["is_session_open"].max()
-                  .reindex(wide.index).fillna(False).astype(bool))
+    open_flags = (
+        bars.groupby("bar_ts")["is_session_open"]
+        .max()
+        .reindex(wide.index)
+        .fillna(False)
+        .astype(bool)
+    )
     wide["is_session_open"] = open_flags.values
 
     # Known-future intraday calendar features from the bar timestamp.
