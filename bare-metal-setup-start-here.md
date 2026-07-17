@@ -93,9 +93,14 @@ has only the auto `kube-root-ca.crt`); all config is env, injected inline + from
 
 There is no ConfigMap. Serve config is two env vars set in `k8s/serve-deployment.yaml`:
 
-- `PYTHIA_REGISTRY_DSN` — from secret `pythia-db` (the DB it **reads** registered models from). ⚠
-  Note the repo manifest wires it from secret key **`dsn`**; the live cluster and the CronJob use the
-  more explicit key **`registry_dsn`**. Pick one and be consistent (§4).
+- `PYTHIA_REGISTRY_DSN` — from secret `pythia-db` (the DB it **reads** registered models from).
+  ⚠ **Redundant keys, NOT a live bug (author-confirmed):** the serve manifest wires this from key
+  **`dsn`** while the retrain CronJob uses **`registry_dsn`** — but in prod both point at the **same**
+  registry DB (`appdb`), so serve and the nightly agree and `/latest` works. It is a *consistency
+  smell*, not a break: if someone ever repoints `dsn` (e.g. to a read-only replica) without also
+  updating `registry_dsn`, serve would silently read a split/stale registry and re-orphan the P5
+  blocks. **Hardening (low priority): unify serve on `registry_dsn`.** Keep `dsn` ≡ `registry_dsn`
+  unless you deliberately split roles.
 - `PYTHIA_CORS_ORIGINS` — inline literal `https://raptor.tonyvigna.com,https://tonyvigna.com`
   (GET-only CORS). **Edit this** to your own origin(s) or the panel's `fetch` is blocked.
 
