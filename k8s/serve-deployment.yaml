@@ -26,7 +26,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: pythia-db
-                  key: dsn
+                  # registry_dsn (not dsn): the nightly CronJob writes the
+                  # registry via this key, so serve must READ via the same key.
+                  # dsn==registry_dsn today (same appdb), but unifying removes
+                  # the latent split-registry orphaning risk if dsn is ever
+                  # repointed (agent-2, helen 2026-07-17).
+                  key: registry_dsn
             - name: PYTHIA_CORS_ORIGINS
               value: "https://raptor.tonyvigna.com,https://tonyvigna.com"
           readinessProbe:

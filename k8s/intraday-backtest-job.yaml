@@ -38,6 +38,13 @@ spec:
           env:
             - name: PYTHIA_DB_DSN
               valueFrom:
+                # dsn (NOT src_dsn): the intraday backtest needs the P3 tables
+                # staging.qqq_pmove + staging.qqq_direction (RaptorPMove/Direction
+                # baselines), which live natively in appdb (the dsn/registry_dsn
+                # DB). src_dsn (raptor@.161) exposes only daily quote_raw via FDW
+                # and LACKS the intraday tables, so it would break this job.
+                # Verified live 2026-07-17 (agent-2). Unlike the nightly (daily
+                # assemble = quote_raw only), this job's source must be appdb.
                 secretKeyRef: { name: pythia-db, key: dsn }
           resources:
             requests: { cpu: 500m, memory: 2Gi, nvidia.com/gpu: 1 }
