@@ -86,13 +86,44 @@ def _normalize_provider_frame(raw: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
+#: Raptor spells an INDEX with a bare root (``VIX``); Yahoo requires a caret
+#: (``^VIX``). Passing the bare root returns a 404 "Quote not found for symbol",
+#: which ``fetch_historical_daily_bars`` swallows as a merely-missing symbol —
+#: so the backfill silently skipped the vol and rate covariates, the two it was
+#: most needed for. Measured 2026-11-04 in the nightly retrain log: ``VIX`` and
+#: ``TNX`` both 404, while raptor's ``quote_raw`` holds only 451 and 40 days of
+#: them respectively against a ``--start 2018-01-01`` training window.
+#:
+#: Keyed by the RAPTOR symbol because that stays the canonical join key:
+#: ``fetch_historical_daily_bars`` re-stamps ``one["symbol"] = sym`` after the
+#: call, so ``combine_daily`` still matches raptor's spelling. Only the wire
+#: call is translated. A symbol already carrying a caret passes through, which
+#: is what ``config.VIX_SYMBOLS``/``RATE_SYMBOLS`` offer as their first
+#: candidate.
+#:
+#: Yahoo-specific, hence local to this provider and NOT shared with
+#: ``_stooq_provider`` — stooq uses its own conventions (and appends ``.us``,
+#: which is equally wrong for an index; left alone because stooq is documented
+#: above as best-effort-only and unreachable headless).
+_YAHOO_TICKERS: dict[str, str] = {
+    "VIX": "^VIX",  # CBOE volatility index
+    "TNX": "^TNX",  # 10-year Treasury yield
+    "FVX": "^FVX",  # 5-year Treasury yield
+}
+
+
+def yahoo_ticker(symbol: str) -> str:
+    """Raptor's symbol as Yahoo spells it. Identity for everything but indices."""
+    return _YAHOO_TICKERS.get(symbol.upper(), symbol)
+
+
 def _yfinance_provider(symbol: str, start: date, end: date, adjust: bool) -> pd.DataFrame:
     """Yahoo daily bars via yfinance. ``end`` is inclusive (yfinance's is
     exclusive, so we add a day)."""
     import yfinance as yf
 
     raw = yf.download(
-        symbol,
+        yahoo_ticker(symbol),
         start=start.isoformat(),
         end=(end + timedelta(days=1)).isoformat(),
         interval="1d",
