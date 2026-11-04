@@ -8,18 +8,20 @@ hitting Yahoo/stooq. A separate opt-in live smoke (scripts/backfill_historical
 
 from __future__ import annotations
 
+import sys
 from datetime import date
 
 import pandas as pd
 import pytest
 
-from pythia.data import assembler
+from pythia.data import assembler, historical
 from pythia.data.assembler import assemble_dataset
 from pythia.data.historical import (
     DAILY_COLUMNS,
     _normalize_provider_frame,
     combine_daily,
     fetch_historical_daily_bars,
+    yahoo_ticker,
 )
 
 
@@ -221,3 +223,73 @@ def test_backfill_off_by_default_is_unchanged(monkeypatch):
     res = assemble_dataset(date(2026, 6, 1), date(2026, 6, 10), engine=object(), symbols=["QQQ"])
     assert res.symbols_backfilled == ()
     assert "QQQ_close" in res.daily.columns
+
+
+# --- Yahoo index tickers --------------------------------------------------
+#
+# Raptor spells an index bare (``VIX``); Yahoo wants ``^VIX``. The bare form
+# 404s, and `fetch_historical_daily_bars` treats a raising provider as a
+# merely-absent symbol, so the vol and rate covariates were skipped by the
+# backfill without anything failing. Observed in the 2026-11-04 nightly
+# retrain log: "Quote not found for symbol: VIX" / ": TNX".
+
+
+def test_index_symbols_map_to_yahoos_caret_spelling():
+    assert yahoo_ticker("VIX") == "^VIX"
+    assert yahoo_ticker("TNX") == "^TNX"
+    assert yahoo_ticker("FVX") == "^FVX"
+
+
+def test_ordinary_equities_and_etfs_are_untouched():
+    for sym in ("QQQ", "SPY", "AAPL", "BRK.B", "TLT", "IEF", "VIXY"):
+        assert yahoo_ticker(sym) == sym
+
+
+def test_an_already_caret_symbol_passes_through_unchanged():
+    """``config.VIX_SYMBOLS`` offers ``^VIX`` first, so it must not be mangled."""
+    assert yahoo_ticker("^VIX") == "^VIX"
+    assert yahoo_ticker("^TNX") == "^TNX"
+
+
+def test_the_wire_call_uses_the_translated_ticker(monkeypatch):
+    """The regression that matters: pin the ticker yfinance is actually HANDED.
+
+    `yahoo_ticker` passing in isolation would not have caught the defect — the
+    bug was that `_yfinance_provider` never called it. A fake `yfinance` module
+    captures the symbol that reaches the wire, hermetically.
+    """
+    seen: list[str] = []
+
+    class _FakeYF:
+        @staticmethod
+        def download(symbol, **kwargs):
+            seen.append(symbol)
+            return _yf_like_frame([date(2020, 1, 2)], 100.0)
+
+    monkeypatch.setitem(sys.modules, "yfinance", _FakeYF)
+    historical._yfinance_provider("VIX", date(2020, 1, 1), date(2020, 1, 3), True)
+    assert seen == ["^VIX"], f"yfinance was handed {seen}, not the caret form"
+
+    seen.clear()
+    historical._yfinance_provider("QQQ", date(2020, 1, 1), date(2020, 1, 3), True)
+    assert seen == ["QQQ"], f"a plain ETF must not be rewritten: {seen}"
+
+
+def test_the_symbol_column_keeps_raptors_spelling_not_yahoos(monkeypatch):
+    """Translation is confined to the wire call.
+
+    ``combine_daily`` joins raptor bars to backfilled bars on ``symbol``, so if
+    the caret leaked into the frame the two sources would never meet and the
+    backfill would silently add a phantom ``^VIX`` column instead of deepening
+    ``VIX``.
+    """
+
+    class _FakeYF:
+        @staticmethod
+        def download(symbol, **kwargs):
+            return _yf_like_frame([date(2020, 1, 2), date(2020, 1, 3)], 20.0)
+
+    monkeypatch.setitem(sys.modules, "yfinance", _FakeYF)
+    out = fetch_historical_daily_bars(["VIX"], date(2020, 1, 1), date(2020, 1, 5))
+    assert set(out["symbol"]) == {"VIX"}, "the caret must not reach the join key"
+    assert not out.empty
